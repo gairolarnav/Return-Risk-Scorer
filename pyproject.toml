@@ -1,0 +1,8 @@
+[tool.ruff]
+line-length = 110
+
+[tool.pytest.ini_options]
+# Without this, pytest's rootdir-insertion only puts tests/ on sys.path (no
+# __init__.py there), so `from src...` fails with ModuleNotFoundError even
+# when run from the repo root exactly as the Quickstart instructs.
+pythonpath = ["."]
