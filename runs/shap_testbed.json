@@ -1,0 +1,170 @@
+{
+  "Fraudulent Return": [
+    {
+      "feature": "refund_to_avg_order_ratio",
+      "mean_abs_shap": 2.2976815623812366
+    },
+    {
+      "feature": "tracking_number_valid",
+      "mean_abs_shap": 1.519571607096202
+    },
+    {
+      "feature": "total_orders_lifetime",
+      "mean_abs_shap": 0.7753462275532405
+    },
+    {
+      "feature": "refund_amount_requested_usd",
+      "mean_abs_shap": 0.4883031079709831
+    },
+    {
+      "feature": "refund_to_different_account",
+      "mean_abs_shap": 0.4765691323461719
+    },
+    {
+      "feature": "photo_evidence_provided",
+      "mean_abs_shap": 0.4533860212023271
+    },
+    {
+      "feature": "avg_order_value_usd",
+      "mean_abs_shap": 0.2995091256779837
+    },
+    {
+      "feature": "address_change_before_delivery",
+      "mean_abs_shap": 0.21887125351196077
+    },
+    {
+      "feature": "return_reason",
+      "mean_abs_shap": 0.20477490016909014
+    },
+    {
+      "feature": "item_returned_opened",
+      "mean_abs_shap": 0.13721913425600993
+    }
+  ],
+  "Legitimate": [
+    {
+      "feature": "refund_to_avg_order_ratio",
+      "mean_abs_shap": 2.372787474372351
+    },
+    {
+      "feature": "avg_order_value_usd",
+      "mean_abs_shap": 1.2906400334576071
+    },
+    {
+      "feature": "multiple_accounts_flag",
+      "mean_abs_shap": 0.7737298053458066
+    },
+    {
+      "feature": "review_left_after_return",
+      "mean_abs_shap": 0.586527823763472
+    },
+    {
+      "feature": "item_returned_opened",
+      "mean_abs_shap": 0.4004333809671575
+    },
+    {
+      "feature": "customer_segment",
+      "mean_abs_shap": 0.2671453707507064
+    },
+    {
+      "feature": "discount_used",
+      "mean_abs_shap": 0.255386514894056
+    },
+    {
+      "feature": "return_reason",
+      "mean_abs_shap": 0.1986309022959692
+    },
+    {
+      "feature": "photo_evidence_provided",
+      "mean_abs_shap": 0.1817114638149745
+    },
+    {
+      "feature": "total_orders_lifetime",
+      "mean_abs_shap": 0.14064295190055195
+    }
+  ],
+  "Policy Abuser": [
+    {
+      "feature": "is_high_value_item",
+      "mean_abs_shap": 2.504339684875777
+    },
+    {
+      "feature": "refund_to_avg_order_ratio",
+      "mean_abs_shap": 0.8568180111779155
+    },
+    {
+      "feature": "total_orders_lifetime",
+      "mean_abs_shap": 0.6908860332271389
+    },
+    {
+      "feature": "refund_amount_requested_usd",
+      "mean_abs_shap": 0.5735339946834158
+    },
+    {
+      "feature": "return_packaging_intact",
+      "mean_abs_shap": 0.18277862681906948
+    },
+    {
+      "feature": "item_returned_opened",
+      "mean_abs_shap": 0.1291310597476288
+    },
+    {
+      "feature": "multiple_accounts_flag",
+      "mean_abs_shap": 0.10246159836172503
+    },
+    {
+      "feature": "return_reason",
+      "mean_abs_shap": 0.10231537213552622
+    },
+    {
+      "feature": "photo_evidence_provided",
+      "mean_abs_shap": 0.08678450401191433
+    },
+    {
+      "feature": "avg_order_value_usd",
+      "mean_abs_shap": 0.08237873076248989
+    }
+  ],
+  "Wardrobing": [
+    {
+      "feature": "item_returned_opened",
+      "mean_abs_shap": 2.3770928593811895
+    },
+    {
+      "feature": "total_orders_lifetime",
+      "mean_abs_shap": 1.0156042652186505
+    },
+    {
+      "feature": "refund_to_avg_order_ratio",
+      "mean_abs_shap": 0.4696612863004419
+    },
+    {
+      "feature": "avg_order_value_usd",
+      "mean_abs_shap": 0.37155302562159104
+    },
+    {
+      "feature": "product_category",
+      "mean_abs_shap": 0.33232807072918946
+    },
+    {
+      "feature": "multiple_accounts_flag",
+      "mean_abs_shap": 0.3167600223855395
+    },
+    {
+      "feature": "return_reason",
+      "mean_abs_shap": 0.30396596115772534
+    },
+    {
+      "feature": "photo_evidence_provided",
+      "mean_abs_shap": 0.1663591518164521
+    },
+    {
+      "feature": "payment_method",
+      "mean_abs_shap": 0.1481735870290142
+    },
+    {
+      "feature": "tracking_number_valid",
+      "mean_abs_shap": 0.1035267661184399
+    }
+  ]
+}

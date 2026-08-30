@@ -1,0 +1,62 @@
+{
+  "decided_prob_threshold": 0.9,
+  "note": "Diagnostic evidence for the Day 1 leakage finding, not a feature-selection procedure. See src/ablation.py docstring and docs/LEAKAGE_FINDING.md.",
+  "ladder": [
+    {
+      "feature_set": "A. all features",
+      "n_features": 35,
+      "macro_f1": 0.9990009903479877,
+      "mean_top_prob": 0.999792346221088,
+      "threshold_sensitive_frac": 0.0006666666666666666
+    },
+    {
+      "feature_set": "B. -wishlist_to_cart_time_hrs",
+      "n_features": 34,
+      "macro_f1": 0.9936157969267471,
+      "mean_top_prob": 0.9992489935490084,
+      "threshold_sensitive_frac": 0.0023333333333333335
+    },
+    {
+      "feature_set": "C. B -days_to_return",
+      "n_features": 33,
+      "macro_f1": 0.9778998227521167,
+      "mean_top_prob": 0.9949759489681995,
+      "threshold_sensitive_frac": 0.016
+    },
+    {
+      "feature_set": "D. C -return_rate_pct",
+      "n_features": 31,
+      "macro_f1": 0.976674129509289,
+      "mean_top_prob": 0.993653653351624,
+      "threshold_sensitive_frac": 0.019583333333333335
+    },
+    {
+      "feature_set": "E. D -total_returns_lifetime",
+      "n_features": 29,
+      "macro_f1": 0.958623112256183,
+      "mean_top_prob": 0.9878520024828463,
+      "threshold_sensitive_frac": 0.037333333333333336
+    },
+    {
+      "feature_set": "F. E -customer_support_contacts",
+      "n_features": 28,
+      "macro_f1": 0.9341745049790867,
+      "mean_top_prob": 0.9716820282838886,
+      "threshold_sensitive_frac": 0.08433333333333333
+    },
+    {
+      "feature_set": "G. F -previous_dispute_count  <- TESTBED",
+      "n_features": 27,
+      "macro_f1": 0.8993396375666273,
+      "mean_top_prob": 0.9459827219909517,
+      "threshold_sensitive_frac": 0.16066666666666668
+    },
+    {
+      "feature_set": "H. G -avg_order_value, -refund_amount",
+      "n_features": 24,
+      "macro_f1": 0.8581102287792279,
+      "mean_top_prob": 0.9185781198620003,
+      "threshold_sensitive_frac": 0.23941666666666667
+    }
+  ]
+}

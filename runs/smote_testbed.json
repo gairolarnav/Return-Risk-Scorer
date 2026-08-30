@@ -1,0 +1,63 @@
+{
+  "track": "testbed",
+  "random_state": 42,
+  "timestamp": "2026-08-28T12:48:08.374001+00:00",
+  "n_train_baseline": 48000,
+  "n_train_smote_nc": 134860,
+  "categorical_features_smoted": [
+    "customer_segment",
+    "country",
+    "platform",
+    "device_type",
+    "payment_method",
+    "product_category",
+    "return_reason",
+    "shipping_carrier"
+  ],
+  "class_weighted_baseline": {
+    "macro_f1": 0.8966586110400194,
+    "accuracy": 0.92975,
+    "per_class_precision": {
+      "Fraudulent Return": 0.9917050691244239,
+      "Legitimate": 0.9758886403181706,
+      "Policy Abuser": 0.7774936061381074,
+      "Wardrobing": 0.7762452107279694
+    },
+    "per_class_recall": {
+      "Fraudulent Return": 0.9676258992805755,
+      "Legitimate": 0.9409227082085081,
+      "Policy Abuser": 0.85997171145686,
+      "Wardrobing": 0.8972542072630647
+    },
+    "per_class_f1": {
+      "Fraudulent Return": 0.9795175238962222,
+      "Legitimate": 0.9580867549264841,
+      "Policy Abuser": 0.816655473472129,
+      "Wardrobing": 0.8323746918652424
+    }
+  },
+  "smote_nc": {
+    "macro_f1": 0.8944014121331127,
+    "accuracy": 0.92825,
+    "per_class_precision": {
+      "Fraudulent Return": 0.9862763037511436,
+      "Legitimate": 0.9680785758133824,
+      "Policy Abuser": 0.772785622593068,
+      "Wardrobing": 0.8073089700996677
+    },
+    "per_class_recall": {
+      "Fraudulent Return": 0.9694244604316546,
+      "Legitimate": 0.944877171959257,
+      "Policy Abuser": 0.8514851485148515,
+      "Wardrobing": 0.8609388839681134
+    },
+    "per_class_f1": {
+      "Fraudulent Return": 0.9777777777777777,
+      "Legitimate": 0.9563371740448757,
+      "Policy Abuser": 0.8102288021534321,
+      "Wardrobing": 0.8332618945563652
+    }
+  },
+  "verdict": "DISCARD",
+  "reason": "macro-F1 moved by -0.0023 (< 0.01 keep margin) \u2014 SMOTENC does not measurably improve on class weighting alone on testbed. Class weighting is already in the pipeline at zero extra inference-time cost and no synthetic-neighbor step to explain to a panelist; SMOTE would add both for no measured benefit."
+}

@@ -1,0 +1,43 @@
+{
+  "track": "testbed",
+  "posture": "loss-neutral (1:1)",
+  "n_legitimate_total": 8345,
+  "buckets": [
+    {
+      "bucket": "Q1 (lowest) ($15-$93)",
+      "n_legitimate_customers": 2336,
+      "hard_block_fpr": 0.0004280821917808219,
+      "soft_friction_rate": 0.10402397260273973
+    },
+    {
+      "bucket": "Q2 ($93-$164)",
+      "n_legitimate_customers": 2104,
+      "hard_block_fpr": 0.0,
+      "soft_friction_rate": 0.12309885931558935
+    },
+    {
+      "bucket": "Q3 ($164-$248)",
+      "n_legitimate_customers": 2356,
+      "hard_block_fpr": 0.0012733446519524619,
+      "soft_friction_rate": 0.0730050933786078
+    },
+    {
+      "bucket": "Q4 (highest) ($248-$800)",
+      "n_legitimate_customers": 1549,
+      "hard_block_fpr": 0.0,
+      "soft_friction_rate": 0.05035506778566817
+    }
+  ],
+  "hard_block_concentration": {
+    "max": 0.0012733446519524619,
+    "min": 0.0,
+    "ratio": null,
+    "flagged": false
+  },
+  "soft_friction_concentration": {
+    "max": 0.12309885931558935,
+    "min": 0.05035506778566817,
+    "ratio": 2.444617090767281,
+    "flagged": true
+  }
+}

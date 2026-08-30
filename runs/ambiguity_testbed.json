@@ -1,0 +1,14 @@
+{
+  "margin_threshold": 0.3,
+  "n_total": 12000,
+  "n_ambiguous": 592,
+  "pair_counts": {
+    "Legitimate vs Policy Abuser": 342,
+    "Legitimate vs Wardrobing": 119,
+    "Policy Abuser vs Wardrobing": 117,
+    "Fraudulent Return vs Wardrobing": 6,
+    "Fraudulent Return vs Legitimate": 4,
+    "Fraudulent Return vs Policy Abuser": 4
+  },
+  "fraudulent_return_involved": 14
+}

@@ -1,0 +1,9 @@
+{
+  "margin_threshold": 0.3,
+  "n_total": 12000,
+  "n_ambiguous": 1,
+  "pair_counts": {
+    "Fraudulent Return vs Policy Abuser": 1
+  },
+  "fraudulent_return_involved": 1
+}

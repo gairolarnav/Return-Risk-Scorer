@@ -1,0 +1,96 @@
+{
+  "track": "full",
+  "macro_f1": 0.9988000482432056,
+  "accuracy": 0.9995,
+  "strawman": {
+    "strawman_class": "Legitimate",
+    "accuracy": 0.6954166666666667,
+    "macro_f1": 0.20508724502334727
+  },
+  "threshold_sensitive_frac": 0.0004166666666666667,
+  "per_class": {
+    "Fraudulent Return": {
+      "precision": 0.9982030548068284,
+      "recall": 0.9991007194244604,
+      "f1": 0.9986516853932584,
+      "support": 1112
+    },
+    "Legitimate": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 8345
+    },
+    "Policy Abuser": {
+      "precision": 0.999290780141844,
+      "recall": 0.9964639321074965,
+      "f1": 0.9978753541076487,
+      "support": 1414
+    },
+    "Wardrobing": {
+      "precision": 0.9973498233215548,
+      "recall": 1.0,
+      "f1": 0.9986731534719151,
+      "support": 1129
+    }
+  },
+  "weakest_boundary": {
+    "actual": "Policy Abuser",
+    "predicted_as": "Wardrobing",
+    "n_cases": 3
+  },
+  "cost_sweep": [
+    {
+      "posture": "loss-neutral (1:1)",
+      "c_fp": 120.0,
+      "c_fn": 120.0,
+      "ratio_fp_to_fn": 1.0,
+      "regret_per_1k": 0.5,
+      "pct_approve": 0.6954166666666667,
+      "pct_soft_friction": 0.21175,
+      "pct_hard_block": 0.09283333333333334,
+      "false_block_rate_on_legit": 0.0,
+      "fraud_caught_rate": 1.0,
+      "fraud_hard_blocked_rate": 1.0
+    },
+    {
+      "posture": "retention-weighted (8:1)",
+      "c_fp": 960.0,
+      "c_fn": 120.0,
+      "ratio_fp_to_fn": 8.0,
+      "regret_per_1k": 0.5,
+      "pct_approve": 0.6954166666666667,
+      "pct_soft_friction": 0.21175,
+      "pct_hard_block": 0.09283333333333334,
+      "false_block_rate_on_legit": 0.0,
+      "fraud_caught_rate": 1.0,
+      "fraud_hard_blocked_rate": 1.0
+    },
+    {
+      "posture": "loss-averse (1:8)",
+      "c_fp": 120.0,
+      "c_fn": 960.0,
+      "ratio_fp_to_fn": 0.125,
+      "regret_per_1k": 0.5,
+      "pct_approve": 0.6954166666666667,
+      "pct_soft_friction": 0.21175,
+      "pct_hard_block": 0.09283333333333334,
+      "false_block_rate_on_legit": 0.0,
+      "fraud_caught_rate": 1.0,
+      "fraud_hard_blocked_rate": 1.0
+    }
+  ],
+  "cost_sweep_is_degenerate": true,
+  "tradeoff_curve_span": {
+    "false_block_rate_min": 0.0,
+    "false_block_rate_max": 0.0,
+    "fraud_hard_blocked_min": 1.0,
+    "fraud_hard_blocked_max": 1.0
+  },
+  "friction_curve_span": {
+    "legit_frictioned_min": 0.0,
+    "legit_frictioned_max": 0.0,
+    "abuser_caught_min": 1.0,
+    "abuser_caught_max": 1.0
+  }
+}

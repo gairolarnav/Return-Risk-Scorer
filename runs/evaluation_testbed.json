@@ -1,0 +1,96 @@
+{
+  "track": "testbed",
+  "macro_f1": 0.8966586110400194,
+  "accuracy": 0.92975,
+  "strawman": {
+    "strawman_class": "Legitimate",
+    "accuracy": 0.6954166666666667,
+    "macro_f1": 0.20508724502334727
+  },
+  "threshold_sensitive_frac": 0.1745,
+  "per_class": {
+    "Fraudulent Return": {
+      "precision": 0.9917050691244239,
+      "recall": 0.9676258992805755,
+      "f1": 0.9795175238962222,
+      "support": 1112
+    },
+    "Legitimate": {
+      "precision": 0.9758886403181706,
+      "recall": 0.9409227082085081,
+      "f1": 0.9580867549264841,
+      "support": 8345
+    },
+    "Policy Abuser": {
+      "precision": 0.7774936061381074,
+      "recall": 0.85997171145686,
+      "f1": 0.816655473472129,
+      "support": 1414
+    },
+    "Wardrobing": {
+      "precision": 0.7762452107279694,
+      "recall": 0.8972542072630647,
+      "f1": 0.8323746918652424,
+      "support": 1129
+    }
+  },
+  "weakest_boundary": {
+    "actual": "Legitimate",
+    "predicted_as": "Policy Abuser",
+    "n_cases": 274
+  },
+  "cost_sweep": [
+    {
+      "posture": "loss-neutral (1:1)",
+      "c_fp": 120.0,
+      "c_fn": 120.0,
+      "ratio_fp_to_fn": 1.0,
+      "regret_per_1k": 314.25,
+      "pct_approve": 0.643,
+      "pct_soft_friction": 0.2658333333333333,
+      "pct_hard_block": 0.09116666666666666,
+      "false_block_rate_on_legit": 0.0004793289394847214,
+      "fraud_caught_rate": 0.9901079136690647,
+      "fraud_hard_blocked_rate": 0.9721223021582733
+    },
+    {
+      "posture": "retention-weighted (8:1)",
+      "c_fp": 960.0,
+      "c_fn": 120.0,
+      "ratio_fp_to_fn": 8.0,
+      "regret_per_1k": 290.08333333333337,
+      "pct_approve": 0.643,
+      "pct_soft_friction": 0.26666666666666666,
+      "pct_hard_block": 0.09033333333333333,
+      "false_block_rate_on_legit": 0.0,
+      "fraud_caught_rate": 0.9901079136690647,
+      "fraud_hard_blocked_rate": 0.9685251798561151
+    },
+    {
+      "posture": "loss-averse (1:8)",
+      "c_fp": 120.0,
+      "c_fn": 960.0,
+      "ratio_fp_to_fn": 0.125,
+      "regret_per_1k": 1362.75,
+      "pct_approve": 0.6325,
+      "pct_soft_friction": 0.2735,
+      "pct_hard_block": 0.094,
+      "false_block_rate_on_legit": 0.0015578190533253446,
+      "fraud_caught_rate": 0.9955035971223022,
+      "fraud_hard_blocked_rate": 0.9748201438848921
+    }
+  ],
+  "cost_sweep_is_degenerate": false,
+  "tradeoff_curve_span": {
+    "false_block_rate_min": 0.0,
+    "false_block_rate_max": 0.0022768124625524265,
+    "fraud_hard_blocked_min": 0.9676258992805755,
+    "fraud_hard_blocked_max": 0.9739208633093526
+  },
+  "friction_curve_span": {
+    "legit_frictioned_min": 0.027801078490113842,
+    "legit_frictioned_max": 0.24793289394847215,
+    "abuser_caught_min": 0.854895792371215,
+    "abuser_caught_max": 0.9956744003145891
+  }
+}

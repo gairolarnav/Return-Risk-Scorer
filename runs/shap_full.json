@@ -1,0 +1,170 @@
+{
+  "Fraudulent Return": [
+    {
+      "feature": "days_to_return",
+      "mean_abs_shap": 2.2171675586288426
+    },
+    {
+      "feature": "wishlist_to_cart_time_hrs",
+      "mean_abs_shap": 1.0086249921119796
+    },
+    {
+      "feature": "refund_to_avg_order_ratio",
+      "mean_abs_shap": 0.6811088566024557
+    },
+    {
+      "feature": "return_rate_pct",
+      "mean_abs_shap": 0.27532691247124236
+    },
+    {
+      "feature": "tracking_number_valid",
+      "mean_abs_shap": 0.27142580682995854
+    },
+    {
+      "feature": "refund_amount_requested_usd",
+      "mean_abs_shap": 0.1827233125104417
+    },
+    {
+      "feature": "orders_kept_lifetime",
+      "mean_abs_shap": 0.16125082884296157
+    },
+    {
+      "feature": "multiple_accounts_flag",
+      "mean_abs_shap": 0.13591181485363132
+    },
+    {
+      "feature": "address_change_before_delivery",
+      "mean_abs_shap": 0.1054130594823948
+    },
+    {
+      "feature": "photo_evidence_provided",
+      "mean_abs_shap": 0.0886664860179646
+    }
+  ],
+  "Legitimate": [
+    {
+      "feature": "returns_per_order",
+      "mean_abs_shap": 4.919491997889871
+    },
+    {
+      "feature": "return_rate_pct",
+      "mean_abs_shap": 1.737058511594922
+    },
+    {
+      "feature": "customer_support_contacts",
+      "mean_abs_shap": 0.652135071026896
+    },
+    {
+      "feature": "avg_order_value_usd",
+      "mean_abs_shap": 0.32877206213301874
+    },
+    {
+      "feature": "total_orders_lifetime",
+      "mean_abs_shap": 0.18307294372009814
+    },
+    {
+      "feature": "days_to_return",
+      "mean_abs_shap": 0.1684091469824681
+    },
+    {
+      "feature": "refund_to_avg_order_ratio",
+      "mean_abs_shap": 0.06377191906495608
+    },
+    {
+      "feature": "orders_kept_lifetime",
+      "mean_abs_shap": 0.052078248325667945
+    },
+    {
+      "feature": "wishlist_to_cart_time_hrs",
+      "mean_abs_shap": 0.042974171376481754
+    },
+    {
+      "feature": "refund_amount_requested_usd",
+      "mean_abs_shap": 0.026130153446678805
+    }
+  ],
+  "Policy Abuser": [
+    {
+      "feature": "return_rate_pct",
+      "mean_abs_shap": 2.6638754955407093
+    },
+    {
+      "feature": "is_high_value_item",
+      "mean_abs_shap": 1.3107022419533627
+    },
+    {
+      "feature": "total_returns_lifetime",
+      "mean_abs_shap": 0.8773158401997218
+    },
+    {
+      "feature": "wishlist_to_cart_time_hrs",
+      "mean_abs_shap": 0.7735620266964298
+    },
+    {
+      "feature": "days_to_return",
+      "mean_abs_shap": 0.23626631859156552
+    },
+    {
+      "feature": "total_orders_lifetime",
+      "mean_abs_shap": 0.20133588240575398
+    },
+    {
+      "feature": "orders_kept_lifetime",
+      "mean_abs_shap": 0.14450228663985543
+    },
+    {
+      "feature": "avg_order_value_usd",
+      "mean_abs_shap": 0.13821607154766508
+    },
+    {
+      "feature": "return_packaging_intact",
+      "mean_abs_shap": 0.13195183009253553
+    },
+    {
+      "feature": "customer_support_contacts",
+      "mean_abs_shap": 0.11032865430867694
+    }
+  ],
+  "Wardrobing": [
+    {
+      "feature": "days_to_return",
+      "mean_abs_shap": 2.3827420998100632
+    },
+    {
+      "feature": "wishlist_to_cart_time_hrs",
+      "mean_abs_shap": 0.9444976185995043
+    },
+    {
+      "feature": "item_returned_opened",
+      "mean_abs_shap": 0.24575128315902264
+    },
+    {
+      "feature": "return_rate_pct",
+      "mean_abs_shap": 0.17269146310555122
+    },
+    {
+      "feature": "orders_per_account_day",
+      "mean_abs_shap": 0.11299638820697291
+    },
+    {
+      "feature": "avg_order_value_usd",
+      "mean_abs_shap": 0.09594441232211888
+    },
+    {
+      "feature": "previous_dispute_count",
+      "mean_abs_shap": 0.061104049410418006
+    },
+    {
+      "feature": "returns_per_order",
+      "mean_abs_shap": 0.03846362118076417
+    },
+    {
+      "feature": "refund_amount_requested_usd",
+      "mean_abs_shap": 0.035731335979988545
+    },
+    {
+      "feature": "age",
+      "mean_abs_shap": 0.03073208268394332
+    }
+  ]
+}
