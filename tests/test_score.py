@@ -214,3 +214,65 @@ def test_unknown_track_is_rejected_by_argparse(run_dir, sample_record):
                 str(run_dir),
             ]
         )
+
+
+def test_unknown_friction_is_rejected_by_argparse(run_dir, sample_record):
+    with pytest.raises(SystemExit):
+        run(
+            [
+                "--record",
+                json.dumps(sample_record),
+                "--friction",
+                "bogus",
+                "--run-dir",
+                str(run_dir),
+            ]
+        )
+
+
+def test_both_postures_reach_the_cli_output(run_dir, sample_record, tmp_path):
+    """The CLI must pass BOTH axes through to the scorer and record them in the
+    output. `--friction` was previously unreachable from the command line —
+    src.infer hardcoded build_cost_matrix's friction cell — so a user could
+    not move the one axis the project calls its centerpiece."""
+    out_path = tmp_path / "out.json"
+    code = run(
+        [
+            "--record",
+            json.dumps(sample_record),
+            "--run-dir",
+            str(run_dir),
+            "--posture",
+            "loss-averse (1:8)",
+            "--friction",
+            "approve-first (4:1)",
+            "--out",
+            str(out_path),
+        ]
+    )
+    assert code == 0
+    result = json.loads(out_path.read_text())
+    assert result["posture"] == "loss-averse (1:8)"
+    assert result["friction_posture"] == "approve-first (4:1)"
+
+
+def test_full_track_warns_that_the_postures_cannot_move_anything(
+    run_dir, sample_record, tmp_path, capsys
+):
+    """Running the demo on `full` under two postures and getting identical
+    output is the headline finding, not a broken flag — so the CLI says so,
+    the same way src/evaluate.py banners a degenerate sweep. On stderr, so it
+    never contaminates the JSON on stdout."""
+    run(
+        [
+            "--record",
+            json.dumps(sample_record),
+            "--track",
+            "full",
+            "--run-dir",
+            str(run_dir),
+            "--out",
+            str(tmp_path / "out.json"),
+        ]
+    )
+    assert "LEAKAGE_FINDING" in capsys.readouterr().err

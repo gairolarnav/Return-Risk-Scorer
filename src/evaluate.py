@@ -98,6 +98,40 @@ DEFAULT_POSTURES: dict[str, tuple[float, float]] = {
     "loss-averse (1:8)": (120.0, 960.0),
 }
 
+# Named postures on the OTHER axis — the one that actually moves (Day 4
+# correction, see sweep_friction_curve's docstring). DEFAULT_POSTURES sweeps
+# C_fp : C_fn, which this dataset renders nearly inert: on `full` every posture
+# above produces byte-identical decisions, and on `testbed` the extremes differ
+# on 29 of 12,000 rows. The live tension is approve vs. soft-friction — how
+# aggressively to fee and flag customers who might just be heavy returners.
+#
+# Values are `friction_cost`, against build_cost_matrix's fixed
+# missed_recovery_cost of 2.0; the ratio in each name is friction : recovery.
+# Holding the denominator at the serving default rather than adopting
+# sweep_friction_curve's 20.0 is deliberate — 1.0 is the value the decision
+# layer has always used, so "balanced" reproduces every previously committed
+# artifact (runs/segment_fpr_*.json especially) exactly.
+#
+# Measured on the testbed track's real test probabilities, these three span
+# essentially the whole published operating curve
+# (runs/friction_tradeoff_testbed.csv: 2.78%-24.79% / 85.49%-99.57%):
+#
+#   posture                legitimate frictioned   wardrobers/abusers caught
+#   recovery-first (1:20)          22.35%                    99.37%
+#   balanced (1:2)                  9.06%                    95.44%
+#   approve-first (4:1)             2.91%                    85.65%
+FRICTION_POSTURES: dict[str, float] = {
+    # Friction is cheap next to an abuse pattern going unrecovered: fee and
+    # flag liberally, and accept that roughly a fifth of honest customers
+    # feel it.
+    "recovery-first (1:20)": 0.1,
+    # The historical serving default.
+    "balanced (1:2)": 1.0,
+    # Friction is expensive — a return fee on an honest customer is a
+    # retention event. Intervene only on strong evidence.
+    "approve-first (4:1)": 8.0,
+}
+
 # A fraudulent return that gets soft-friction (a return fee, inspection)
 # instead of a hard block isn't a full miss — the fee recovers part of the
 # loss and the inspection may still catch it. Costed as a fraction of the

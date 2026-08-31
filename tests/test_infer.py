@@ -179,6 +179,85 @@ def test_unknown_posture_is_rejected_explicitly():
         score_record({"avg_order_value_usd": 100.0}, bundle, posture="does-not-exist")
 
 
+# The friction axis — the one the Day 4 correction identifies as the only axis
+# that moves. It was reachable from src.evaluate's sweeps but NOT from the
+# serving path, which hardcoded build_cost_matrix's friction_cost default.
+
+
+def test_friction_posture_changes_the_routed_action():
+    """The friction argument must reach the decision, not just be echoed back.
+
+    For this vector the record is mostly Legitimate (0.70) with real
+    Policy-Abuser mass (0.20). Expected costs, verified by hand against
+    build_cost_matrix's cells rather than asserted blind:
+
+        approve       = .02(120) + .20(2) + .08(2)      = 2.96  (all postures)
+        soft_friction = .02(48)  + .70(friction_cost)
+                      = 1.03 / 1.66 / 6.56  at fc = 0.1 / 1.0 / 8.0
+
+    so friction stays cheaper than approving until friction gets expensive,
+    and the action flips soft_friction -> approve at the approve-first end.
+    """
+    proba = [0.02, 0.70, 0.20, 0.08]  # Fraud, Legit, PolicyAbuser, Wardrobing
+    bundle = _bundle(model=_StubClassifier(proba), feature_cols=["avg_order_value_usd"])
+    record = {"avg_order_value_usd": 100.0}
+
+    recovery = score_record(record, bundle, friction_posture="recovery-first (1:20)")
+    approve = score_record(record, bundle, friction_posture="approve-first (4:1)")
+
+    assert recovery["recommended_action"] == "soft_friction"
+    assert approve["recommended_action"] == "approve"
+    # Same probabilities, different friction label surfaced faithfully.
+    assert recovery["friction_posture"] != approve["friction_posture"]
+    assert recovery["class_probabilities"] == approve["class_probabilities"]
+
+
+def test_friction_default_reproduces_the_historical_operating_point():
+    """`balanced (1:2)` is friction_cost=1.0 — the value build_cost_matrix has
+    always defaulted to, which is what the decision layer used before the
+    friction axis was exposed at all.
+
+    This test is what makes the new flag safe to add: every previously
+    committed artifact (runs/segment_fpr_*.json in particular) was generated at
+    that operating point, so scoring with no friction argument must still land
+    there. Pinned against the explicitly-passed posture rather than against a
+    recorded string, so it fails if the default is ever repointed.
+    """
+    proba = [0.02, 0.70, 0.20, 0.08]
+    bundle = _bundle(model=_StubClassifier(proba), feature_cols=["avg_order_value_usd"])
+    record = {"avg_order_value_usd": 100.0}
+
+    implicit = score_record(record, bundle)
+    explicit = score_record(record, bundle, friction_posture="balanced (1:2)")
+
+    assert implicit["friction_posture"] == "balanced (1:2)"
+    assert implicit["recommended_action"] == explicit["recommended_action"]
+    assert implicit["recommended_action"] == "soft_friction"
+
+
+def test_unknown_friction_posture_is_rejected_explicitly():
+    """Same failure mode as an unknown --posture: a typo must raise, not fall
+    back to the default and silently score under a policy nobody chose."""
+    bundle = _bundle(model=_StubClassifier([0.25] * 4), feature_cols=["avg_order_value_usd"])
+    with pytest.raises(ValueError, match="Unknown friction posture"):
+        score_record({"avg_order_value_usd": 100.0}, bundle, friction_posture="does-not-exist")
+
+
+def test_batch_carries_both_posture_columns():
+    """A batch CSV must record which policy produced it. Both axes, because
+    reading the output later without knowing the friction posture makes the
+    recommendation uninterpretable."""
+    proba = [0.02, 0.70, 0.20, 0.08]
+    bundle = _bundle(model=_StubClassifier(proba), feature_cols=["avg_order_value_usd"])
+    records = pd.DataFrame({"avg_order_value_usd": [100.0, 250.0]})
+
+    out = score_batch(records, bundle, friction_posture="approve-first (4:1)")
+
+    assert list(out["posture"]) == ["loss-neutral (1:1)"] * 2
+    assert list(out["friction_posture"]) == ["approve-first (4:1)"] * 2
+    assert list(out["recommended_action"]) == ["approve"] * 2
+
+
 # Bug 4 — inference skipped feature engineering, so served records had a
 # different schema than trained ones
 

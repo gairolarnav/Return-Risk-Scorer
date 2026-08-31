@@ -747,7 +747,7 @@ dropped.
 - [x] `full` vs `testbed` distinction stated in the README, not discoverable only in code
 - [x] Clean-clone Quickstart verified from a fresh virtualenv
 - [x] ~~Working demo~~ → **`scripts/score.py` CLI** (record or CSV → class → routed
-      intervention, under an explicit `--posture`). The Streamlit demo was cut
+      intervention, under an explicit `--posture` and `--friction`). The Streamlit demo was cut
       from scope; see §8. The deliverable is the real decision path, not a UI shell.
 - [ ] 5-minute pitch video — **open.** `docs/PITCH.md` is the written script;
       nothing has been recorded.
@@ -781,6 +781,7 @@ see the shape of what changed at a glance. Entries are never deleted.
 | Day 6 | §9 Day 6 | "3–4 pytest tests on `features.py`" | Nine-test plan ranked by claim defended (§9.3) | Leakage finding changed what needs guarding |
 | Day 6 | §8, §10 | Streamlit demo app at `app/demo.py` | **Cut.** Replaced by `scripts/score.py`, a CLI over the same `src.infer` path | A UI shell demonstrates nothing the CLI doesn't; the decision layer is the deliverable, and a second scoring path is the two-implementations failure mode §8 warns about |
 | Day 6 | §4.2 | OPEN — whether trailing/temporal aggregates are "live" for the 1,945 repeat customers | **Closed: they aren't a real aggregate at all** — `total_orders_lifetime` etc. are independent per-row generator snapshots, non-monotonic across a customer's own rows (78 → 57 → 12 → 14 in one real case) | Checked directly against the raw CSV's repeat-customer rows while writing the T.2 temporal-leakage test |
+| Day 7 | §8, §6.2 | The scoring CLI exposes the cost policy through `--posture` alone | **`--friction` added**, and `--posture`'s help text corrected to state that it is the near-inert axis | The Day 4 correction moved the centerpiece to the friction axis, but the serving path was never updated to match: `src/infer.py` called `build_cost_matrix` without a `friction_cost`, silently taking the default, so the one axis §6.2 calls the deliverable could not be moved at the point of use. Measured before the fix: all three `--posture` values produce byte-identical actions for 12,000 of 12,000 rows on `full`, and differ on 29 at the extremes on `testbed`. `--friction` moves 764–1,219. Its `balanced (1:2)` default is the previously hardcoded value, so no committed artifact changed |
 
 **On keeping this log.** Every entry is a place the plan was wrong, and
 publishing that list is a deliberate choice. A reviewer's fastest way to

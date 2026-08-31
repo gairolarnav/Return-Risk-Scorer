@@ -83,7 +83,21 @@ soft-friction** boundary, and it moves by an order of magnitude:
 ![friction operating curve](runs/friction_tradeoff_testbed.png)
 
 That curve is the deliverable: it hands a merchant the achievable menu instead
-of picking a threshold for them.
+of picking a threshold for them. It is also selectable at the point of use —
+`scripts/score.py --friction` moves along it:
+
+```bash
+python -m scripts.score --csv examples/sample_returns.csv --track testbed \
+    --friction "recovery-first (1:20)"   # 22.4% of legitimate customers frictioned, 99.4% of abusers caught
+python -m scripts.score --csv examples/sample_returns.csv --track testbed \
+    --friction "approve-first (4:1)"     #  2.9% frictioned, 85.7% caught
+```
+
+On the full 12,000-row test set those two postures disagree on 1,219 and 764
+decisions respectively. `--posture`, which sweeps `C_fp : C_fn`, disagrees on
+**29** — and on `--track full` both flags change nothing at all, which is the
+leakage finding restated at the command line. The CLI prints that caveat itself
+rather than leaving a reviewer to infer it from identical output.
 
 ---
 
@@ -189,7 +203,7 @@ src/infer.py       single-record + batch scoring -> recommended intervention
 src/explain.py     per-class SHAP, both tracks
 src/smote_experiment.py  SMOTE vs class-weighted on testbed
 src/segment_audit.py     segment-level FPR by order-value bucket
-scripts/score.py   CLI: score a record or CSV, --track, --posture
+scripts/score.py   CLI: score a record or CSV, --track, --posture, --friction
 notebooks/         presentation only, imports from src, holds no logic —
                     01_eda, 02_feature_engineering, 03_modeling, 04_cost_calibration
 docs/              ARCHITECTURE.md   full design + correction log
@@ -235,8 +249,8 @@ two open items are listed as open rather than quietly dropped.
 **Delivery**
 
 - [x] `scripts/score.py` CLI — single record or batch CSV, `--track`,
-      `--posture`. The planned Streamlit demo was cut; see the correction log
-      in `docs/ARCHITECTURE.md` §11
+      `--posture` (the inert axis) and `--friction` (the live one). The planned
+      Streamlit demo was cut; see the correction log in `docs/ARCHITECTURE.md` §11
 - [x] Four presentation notebooks, executed in place, importing from `src`
       and holding no logic of their own
 - [x] `docs/ARCHITECTURE.md` reconciled — three corrections folded in, §10
