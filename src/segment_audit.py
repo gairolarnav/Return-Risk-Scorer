@@ -3,7 +3,8 @@ Segment-level FPR audit by order-value bucket (docs/ARCHITECTURE.md §6.2
 stretch goal).
 
 Checks that the decision policy is not concentrating false blocks on one
-customer segment.
+customer segment — an aggregate false-block rate can look acceptable while
+being paid entirely by one slice of customers.
 
 Reuses the exact decision layer src/evaluate.py and src/infer.py use --
 build_cost_matrix + expected_cost_decision under DEFAULT_POSTURES -- against
@@ -61,10 +62,18 @@ CONCENTRATION_RATIO_FLAG = 2.0
 MIN_RATE_TO_FLAG = 0.01
 
 
-def _order_value_buckets(values: pd.Series, n_buckets: int = N_BUCKETS) -> pd.Series:
+def _order_value_buckets(
+    values: pd.Series, n_buckets: int = N_BUCKETS
+) -> tuple[pd.Series, list[str]]:
     """Quartile buckets on avg_order_value_usd, labelled with the actual
     dollar range so the report is readable without cross-referencing edges
-    elsewhere."""
+    elsewhere.
+
+    Returns (bucket_label_per_row, ordered_label_list). The label list is
+    returned rather than re-derived by the caller so bucket iteration order is
+    fixed by the quantile edges, not by whatever order the values happen to
+    appear in.
+    """
     _, edges = pd.qcut(values, q=n_buckets, retbins=True, duplicates="drop")
     labels = [
         f"{BUCKET_NAMES[i]} (${edges[i]:.0f}-${edges[i + 1]:.0f})" for i in range(len(edges) - 1)

@@ -80,9 +80,9 @@ document uses that spelling throughout, matching the data rather than prose.*
 >
 > | | accuracy | macro-F1 |
 > |---|---|---|
-> | Always-predict-Legitimate strawman | 0.6950 | 0.2050 |
+> | Always-predict-Legitimate strawman | 0.6954 | 0.2051 |
 > | **Four hand-written rules, no training** | **0.9425** | **0.9188** |
-> | LightGBM, full feature set | 0.9994 | 0.9986 |
+> | LightGBM, full feature set (unweighted Day 2 baseline) | 0.9994 | 0.9986 |
 >
 > `Fraudulent Return` and `Wardrobing` are recovered at **100% recall by two
 > threshold comparisons.**
@@ -96,6 +96,17 @@ document uses that spelling throughout, matching the data rather than prose.*
 > This is not a footnote to the results. **It is the headline result**, and the
 > README leads with it. Full evidence — per-class range tables, greedy forward
 > selection, the decisive rule test — in `docs/LEAKAGE_FINDING.md`.
+>
+> **Two model numbers appear in this repository, and they are not the same
+> measurement.** 0.9986 / 0.9994 is the *unweighted* Day 2 baseline that tripped
+> the §6.4 gate — the number this block and `docs/LEAKAGE_FINDING.md` narrate,
+> reproducible with `train_track(..., class_weighted=False)`. **0.9988 / 0.9995**
+> is the shipped `full` track, which is class-weighted (§5); it is what
+> `runs/model_full.json`, `README.md` and `docs/EVALUATION.md` report. The gap
+> between them is 0.0002 macro-F1 — class weighting is very nearly a no-op on a
+> model this saturated, which is itself part of the finding. Where this document
+> narrates a Day 1/2 event it quotes the number measured that day; where it
+> states the deliverable it quotes the shipped model.
 
 **Data split strategy:** Stratified train/test split preserving class ratios (80/20). If a usable timestamp field exists, a temporal split is preferred over random. Which one applies is determined by the Day 1 data gate (§9.1) and recorded in `docs/DATA_NOTES.md` with the reasoning.
 
@@ -279,11 +290,61 @@ selected because it scores well.
 | **G. F − `previous_dispute_count`** | **27** | **0.8993** | **16.1%** |
 | H. G − `avg_order_value`, `refund_amount` | 24 | 0.8581 | 23.9% |
 
+> **Why rung G reads 0.8993 here and the `testbed` track reads 0.8967
+> elsewhere.** Same 27 features, different fit — not a discrepancy. The ladder
+> is a *comparative* sweep across eight feature sets, so `src/ablation.py`
+> fits a deliberately lighter model (150 trees at lr 0.08, unweighted) where
+> only the relative shape of the curve carries the finding. The shipped
+> `testbed` track is fit by `src/model.py` with the same hyperparameters as
+> `full` (400 trees at lr 0.05, class-weighted) so the two tracks are
+> comparable to each other. Ladder numbers come from
+> `runs/ablation_ladder.json`; track numbers from `runs/model_testbed.json`.
+> Quote a number with the file it came from.
+
 **Why the testbed cannot be promoted to headline model:** the ladder degrades
 smoothly from 0.999 to 0.858 with no natural cut point, so any rung is
 arbitrary. "We dropped features until the task got hard" is not a result, and
 a reviewer will say so. Naming the testbed as not-a-model, in the README and in
 the code, is the only version of this that survives questioning.
+
+### 5.3 Hyperparameters were fixed, not tuned — and why
+
+**There is no validation split, no hyperparameter search, and no early
+stopping in this build.** Both tracks are fit with the same two constants,
+declared at the top of `src/model.py` and never moved:
+
+```python
+N_ESTIMATORS  = 400
+LEARNING_RATE = 0.05
+```
+
+This is a deliberate omission, and stating it plainly is cheaper than letting
+a reviewer discover it. Three reasons:
+
+1. **There is nothing to tune toward.** The `full` track sits at 0.9988
+   macro-F1 with 99.9% of predictions above p=0.99. A search would be
+   optimising in the fourth decimal place, and every point it could buy would
+   come from fitting the synthetic generator more tightly — which is the exact
+   behaviour this project's headline finding says to stop rewarding. A tuned
+   0.9992 would be a *worse* submission than an untuned 0.9988, because it
+   would imply the number meant something.
+2. **A tuning result would not be honest here anyway.** With a single temporal
+   test split and no validation fold, any search would have to select against
+   the test set — the same test set the ablation ladder already touches eight
+   times. Adding a search on top would convert a clean held-out number into a
+   selected one for no analytical gain.
+3. **The interesting parameters are not the model's.** The decision this
+   project is actually about lives in the cost matrix (§6.2), which *is* swept,
+   across two axes, with the operating curve reported rather than a chosen
+   point. That is where the tuning effort went.
+
+**What this costs, stated honestly.** These numbers are not "the best LightGBM
+can do on this data" and are not presented as such — they are what a
+reasonable default configuration does. On a real, non-degenerate dataset this
+would be an unacceptable gap and the first thing to fix: a proper
+train/validation/test three-way split, with the search run against validation
+only and the test set touched once. That is recorded as future work, not
+claimed as done.
 
 ---
 
@@ -292,9 +353,9 @@ the code, is the only version of this that survives questioning.
 ### 6.1 What will NOT be the headline metric
 Macro-accuracy. With a 70% legitimate majority class, a model predicting "legitimate" for everything scores ~70% accuracy while being useless. This strawman baseline is computed and recorded on Day 2 alongside the first real model, and shown explicitly in the writeup to justify why accuracy is rejected.
 
-*Recorded: the strawman scores 0.6950 accuracy / 0.2050 macro-F1. Per the §2
+*Recorded: the strawman scores 0.6954 accuracy / 0.2051 macro-F1. Per the §2
 correction, it is now reported as the first of three anchors — strawman, then
-the untrained rule baseline at 0.9188, then the model at 0.9986. **The sequence
+the untrained rule baseline at 0.9188, then the model at 0.9988. **The sequence
 is the argument**; any one of those numbers alone misrepresents the project.*
 
 ### 6.2 What will be reported
@@ -395,7 +456,8 @@ Any headline macro-F1 above ~0.95 is treated as a leakage signal, not a result, 
 - All decisions are logged and explainable (SHAP), supporting human audit of every flagged case.
 
 *Enforced, not asserted: `tests/test_compliance.py` fails if any module under
-`src/` or `app/` imports a generative or LLM library. The track criterion is
+`src/` or `scripts/` imports a generative or LLM library, or if
+`requirements.txt` names one. The track criterion is
 "anything offense-capable is disqualified" — a claim in a document is weaker
 evidence of compliance than a test in CI.*
 
@@ -418,11 +480,15 @@ return-risk-scorer/
 ├── src/
 │   ├── data_gate.py             # Day 1 gate: customer-ID viability, split strategy, leakage sweep
 │   ├── features.py              # feature builders + DROP_COLS leakage quarantine
+│   ├── ablation.py              # degeneracy ladder (diagnostic evidence, not feature selection)
 │   ├── model.py                 # train/predict/threshold logic; `full` | `testbed` track selector
 │   ├── evaluate.py              # per-class PR, confusion matrix, cost + friction sweeps
-│   └── infer.py                 # single-record scoring function
-├── app/
-│   └── demo.py                  # Streamlit demo
+│   ├── infer.py                 # single-record + batch scoring -> routed intervention
+│   ├── explain.py               # per-class SHAP, both tracks
+│   ├── smote_experiment.py      # SMOTE vs class-weighted on testbed
+│   └── segment_audit.py         # segment-level FPR by order-value bucket
+├── scripts/
+│   └── score.py                 # CLI: record or CSV -> class + intervention (replaces the cut demo)
 ├── runs/                        # committed — reviewer reads every headline number without the dataset
 │   ├── evaluation_full.json
 │   ├── evaluation_testbed.json
@@ -430,11 +496,16 @@ return-risk-scorer/
 ├── docs/
 │   ├── ARCHITECTURE.md          # this file
 │   ├── LEAKAGE_FINDING.md       # the headline result — read this second, after the README
-│   └── DATA_NOTES.md            # Day 1 gate findings + split-strategy decision
+│   ├── DATA_NOTES.md            # Day 1 gate findings + split-strategy decision
+│   ├── EVALUATION.md            # per-class metrics, both cost axes, caveats
+│   └── PITCH.md                 # 5-minute pitch script
 ├── tests/                       # see §9.3
 │   ├── test_leakage.py
 │   ├── test_features.py
 │   ├── test_split.py
+│   ├── test_baseline_rule.py
+│   ├── test_infer.py
+│   ├── test_score.py
 │   └── test_compliance.py
 ├── requirements.txt
 ├── LICENSE
@@ -461,8 +532,8 @@ someone else's dataset is separately a bloat and licensing problem.
 - `imbalanced-learn` — SMOTE comparison
 - `shap` — explainability
 - `joblib` — model artifact persistence
-- `streamlit` — demo app
 - `matplotlib` / `seaborn` — PR curves, confusion matrix plots
+- `tabulate` — markdown tables in generated reports (`runs/`, `docs/DATA_NOTES.md`)
 - `pytest` — tests
 - `ruff` — linting (one tool, zero config)
 
@@ -473,12 +544,12 @@ someone else's dataset is separately a bloat and licensing problem.
 pandas==2.2.3
 numpy==1.26.4
 pyarrow==17.0.0
+tabulate==0.9.0
 lightgbm==4.5.0
 scikit-learn==1.5.2
 imbalanced-learn==0.12.4
 shap==0.46.0
 joblib==1.4.2
-streamlit==1.39.0
 matplotlib==3.9.2
 seaborn==0.13.2
 pytest==8.3.3
@@ -503,9 +574,16 @@ pip install -r requirements.txt
 # place the Kaggle CSV at data/raw/returns.csv, then:
 python -m src.data_gate        # Day 1 checks: customer viability, split strategy, leakage sweep
 python -m src.features         # builds processed train/test sets
-python -m src.model            # trains + saves the model
+python -m src.ablation         # the degeneracy ladder
+python -m src.model            # trains + saves both tracks
 python -m src.evaluate         # generates metrics, confusion matrix, cost + friction tables
-streamlit run app/demo.py      # launches the interactive demo
+python -m src.explain          # per-class SHAP, both tracks
+python -m src.smote_experiment # SMOTE vs class-weighted on testbed
+python -m src.segment_audit    # segment FPR by order-value bucket
+
+# score a record or a batch CSV -> routed intervention (replaces the cut demo)
+python -m scripts.score --record '{"...": "..."}' --track full
+python -m scripts.score --csv returns.csv --out scored.csv --track testbed
 
 # no dataset? every headline number is committed:
 #   runs/evaluation_full.json, runs/evaluation_testbed.json,
@@ -606,7 +684,7 @@ worth more than sixty that exercise getters.
 |---|---|---|---|
 | T.1 | `abuse_label` absent from the feature matrix; no single feature clears the gate threshold at depth `max(2, n_classes-1)` | The §9.1 finding — permanent tripwire on the leak | **Must** |
 | T.2 | A customer-behavioral aggregate for row *n* uses only rows strictly before *n* for that customer | Temporal leakage in aggregates — silent when present, inflates everything | **Must** |
-| T.6 | No module under `src/` or `app/` imports a generative or LLM library | §7 — the one criterion that disqualifies | **Must** |
+| T.6 | No module under `src/` or `scripts/` imports a generative or LLM library | §7 — the one criterion that disqualifies | **Must** |
 | T.3 | Train/test disjoint on row key; `max(train ts) <= min(test ts)` | Every reported number | Should |
 | T.4 | No ablation rung retains an algebraic restatement of a feature it drops | The §4.2 proxy trap, frozen as an assertion | Should |
 | T.5 | Feature builders match hand-computed values on a ~10-row fixture | That someone understood the features | Should |
@@ -615,8 +693,7 @@ worth more than sixty that exercise getters.
 | T.9 | `src/infer.py` returns 4 probabilities summing to 1.0 + a valid intervention | The demo path a judge runs live | Nice |
 
 **If time runs out, T.1 / T.2 / T.6 are worth more than the other six
-combined.** Write those three and record the rest as not-reached, with the
-reason. Three tests that defend the thesis
+combined.** Write those three and record the rest as not-reached, with the reason. Three tests that defend the thesis
 plus an honest note about what was skipped reads better than nine shallow ones.
 
 **Two standing rules.** Every test runs on committed fixtures — a suite that
@@ -650,33 +727,41 @@ reported numbers. It is not resolved by loosening the assertion.
 
 ## 10. Deliverables Checklist
 
+Boxes are checked against what is actually in the repository, not against what
+was planned. Two remain open and are listed as open rather than quietly
+dropped.
+
 **Core**
 
-- [ ] Public GitHub repo, structured as §8
-- [ ] `docs/LEAKAGE_FINDING.md` — the headline result, complete with evidence
-- [ ] `docs/DATA_NOTES.md` — Day 1 gate findings, **including the open rows-per-customer answer (§4.2)**
-- [ ] Held-out test set with documented split strategy (temporal)
-- [ ] Per-class precision/recall/F1 + annotated confusion matrix
-- [ ] **Friction ↔ missed-recovery operating curve** — the centerpiece (§6.2 correction)
-- [ ] The inert `C_fp:C_fn` sweep reported alongside it, as the axis that *doesn't* move
-- [ ] Three-anchor result presentation: strawman 0.2050 → untrained rules 0.9188 → model 0.9986
-- [ ] Explicit synthetic-data limitation, at the strength of the §2 correction
-- [ ] Explicit leakage-screening result, including the depth-1 gate bug and its fix
-- [ ] Explicit failure-mode disclosure (Legitimate vs Policy Abuser)
-- [ ] `full` vs `testbed` distinction stated in the README, not discoverable only in code
-- [ ] Clean-clone Quickstart verified from a fresh virtualenv
-- [ ] Working demo (record → class → intervention)
-- [ ] 5-minute pitch video
-- [ ] This architecture document, with its correction log intact
+- [x] Public GitHub repo, structured as §8
+- [x] `docs/LEAKAGE_FINDING.md` — the headline result, complete with evidence
+- [x] `docs/DATA_NOTES.md` — Day 1 gate findings, **including the open rows-per-customer answer (§4.2)**
+- [x] Held-out test set with documented split strategy (temporal)
+- [x] Per-class precision/recall/F1 + annotated confusion matrix
+- [x] **Friction ↔ missed-recovery operating curve** — the centerpiece (§6.2 correction)
+- [x] The inert `C_fp:C_fn` sweep reported alongside it, as the axis that *doesn't* move
+- [x] Three-anchor result presentation: strawman 0.2051 → untrained rules 0.9188 → model 0.9988
+- [x] Explicit synthetic-data limitation, at the strength of the §2 correction
+- [x] Explicit leakage-screening result, including the depth-1 gate bug and its fix
+- [x] Explicit failure-mode disclosure (Legitimate vs Policy Abuser)
+- [x] `full` vs `testbed` distinction stated in the README, not discoverable only in code
+- [x] Clean-clone Quickstart verified from a fresh virtualenv
+- [x] ~~Working demo~~ → **`scripts/score.py` CLI** (record or CSV → class → routed
+      intervention, under an explicit `--posture`). The Streamlit demo was cut
+      from scope; see §8. The deliverable is the real decision path, not a UI shell.
+- [ ] 5-minute pitch video — **open.** `docs/PITCH.md` is the written script;
+      nothing has been recorded.
+- [x] This architecture document, with its correction log intact
 
 **Repo hygiene**
 
-- [ ] `runs/` committed; `data/raw/` not committed
-- [ ] Tests T.1 / T.2 / T.6 written and passing on fixtures
-- [ ] CI running `ruff check` + `pytest`, badge in README
-- [ ] LICENSE present
-- [ ] Notebook outputs cleared or deliberately kept
-- [ ] Secret scan over history clean
+- [x] `runs/` committed; `data/raw/` not committed
+- [x] Tests T.1 / T.2 / T.6 written and passing on fixtures
+- [x] CI running `ruff check` + `pytest`, badge in README
+- [x] LICENSE present (MIT)
+- [x] Notebook outputs deliberately kept (all four notebooks executed in place,
+      real output cells; they import from `src` and hold no logic)
+- [x] Secret scan over history clean
 
 ---
 
@@ -694,6 +779,7 @@ see the shape of what changed at a glance. Entries are never deleted.
 | Day 4 | §6.2 | `C_fp:C_fn` sweep is "the actual deliverable of the project" | **Friction ↔ missed-recovery** curve is the centerpiece; `C_fp:C_fn` reported as inert | Sweep produces byte-identical decisions from 0.03 to 32 on the full model |
 | Day 4 | §6.3 | Weakest boundary predicted: Wardrobing vs Policy Abuser | Actual: **Legitimate vs Policy Abuser** (342 of 592 ambiguous rows) | Top-two-margin analysis |
 | Day 6 | §9 Day 6 | "3–4 pytest tests on `features.py`" | Nine-test plan ranked by claim defended (§9.3) | Leakage finding changed what needs guarding |
+| Day 6 | §8, §10 | Streamlit demo app at `app/demo.py` | **Cut.** Replaced by `scripts/score.py`, a CLI over the same `src.infer` path | A UI shell demonstrates nothing the CLI doesn't; the decision layer is the deliverable, and a second scoring path is the two-implementations failure mode §8 warns about |
 | Day 6 | §4.2 | OPEN — whether trailing/temporal aggregates are "live" for the 1,945 repeat customers | **Closed: they aren't a real aggregate at all** — `total_orders_lifetime` etc. are independent per-row generator snapshots, non-monotonic across a customer's own rows (78 → 57 → 12 → 14 in one real case) | Checked directly against the raw CSV's repeat-customer rows while writing the T.2 temporal-leakage test |
 
 **On keeping this log.** Every entry is a place the plan was wrong, and

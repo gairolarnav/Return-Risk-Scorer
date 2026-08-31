@@ -32,6 +32,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
 
 from src.evaluate import (
@@ -58,13 +59,12 @@ def load_run(run_path: str | Path) -> dict:
     """Load a saved run bundle. Accepts the .json or .joblib path."""
     run_path = Path(run_path)
     bundle = joblib.load(run_path.with_suffix(".joblib"))
-    # "categories" is included here, not just the three original keys: a
-    # bundle missing it is exactly the pre-rewrite artifact bug 1 above was
-    # fixed for (a one-row inference frame defines its own categorical
-    # schema and LightGBM rejects it). Silently defaulting to {} in
-    # prepare_record would let that bug back in for any old bundle instead
-    # of failing loudly here, which is what "Old bundles are incompatible"
-    # promises.
+    # "categories" is checked here, not just the three original keys: a bundle
+    # missing it is a pre-rewrite artifact, and scoring with one reintroduces
+    # the categorical-schema mismatch (a one-row inference frame defines its
+    # own categories and LightGBM rejects it). Silently defaulting to {} in
+    # prepare_frame would let that bug back in for any old bundle; failing
+    # loudly here forces a retrain instead.
     for key in ("model", "label_encoder", "feature_cols", "categories"):
         if key not in bundle:
             raise KeyError(
@@ -78,13 +78,34 @@ def load_run(run_path: str | Path) -> dict:
 def prepare_frame(records: pd.DataFrame, bundle: dict) -> pd.DataFrame:
     """Build a model frame matching the training schema exactly, for one row
     or many. `prepare_record` is a one-row convenience wrapper over this —
-    both single-record and batch scoring go through the same transform."""
+    both single-record and batch scoring go through the same transform.
+
+    A caller that omits a feature gets NaN for it, not a hard failure: LightGBM
+    handles missing values natively and a merchant integration will legitimately
+    not carry every column. But the omission is never silent — the names land in
+    `frame.attrs["missing_features"]` and are surfaced in the scoring output, so
+    a recommendation made on a partial record says so.
+
+    Raises ValueError when the record supplies *none* of the expected features,
+    which is a caller error (wrong schema, empty payload) rather than a partial
+    record worth scoring.
+    """
     frame = add_transaction_level_features(records)
 
     feature_cols = bundle["feature_cols"]
-    for col in feature_cols:
-        if col not in frame.columns:
-            frame[col] = None
+    missing = [col for col in feature_cols if col not in frame.columns]
+    if len(missing) == len(feature_cols):
+        raise ValueError(
+            f"Record supplies none of the {len(feature_cols)} features this "
+            f"'{bundle.get('track', 'unknown')}' model was trained on. Got columns "
+            f"{sorted(records.columns)[:10]}...; expected e.g. {feature_cols[:5]}. "
+            "Check the input schema against runs/model_<track>.json 'feature_cols'."
+        )
+    for col in missing:
+        # np.nan, not None: None makes the column `object` dtype, and LightGBM
+        # rejects that with a bare "pandas dtypes must be int, float or bool"
+        # traceback. NaN is the value the model was actually trained to handle.
+        frame[col] = np.nan
     frame = frame[feature_cols].copy()
 
     # Reapply the *training* categorical levels. A frame built from scratch
@@ -97,6 +118,7 @@ def prepare_frame(records: pd.DataFrame, bundle: dict) -> pd.DataFrame:
         if col in frame.columns:
             frame[col] = pd.Categorical(frame[col], categories=levels)
 
+    frame.attrs["missing_features"] = missing
     return frame
 
 
@@ -167,6 +189,9 @@ def score_record(
         "recommended_intervention": routed["recommended_intervention"],
         "argmax_would_route_to": routed["argmax_would_route_to"],
         "track": bundle.get("track", "unknown"),
+        # Surfaced, not swallowed: a recommendation built on a partial record
+        # names the features it did not have.
+        "features_missing": list(frame.attrs.get("missing_features", [])),
     }
 
 
@@ -190,10 +215,17 @@ def score_batch(
     frame = prepare_frame(records, bundle)
     proba = clf.predict_proba(frame)
     routed = _route(proba, class_names, posture)
-    routed.index = records.index
     routed["track"] = bundle.get("track", "unknown")
 
-    return pd.concat([records.reset_index(drop=True), routed.reset_index(drop=True)], axis=1)
+    # A missing column is missing for the whole batch, so this is one number per
+    # run rather than per row — but it belongs in the CSV, where a reader who
+    # never saw the console output can still see the scores were partial.
+    missing = list(frame.attrs.get("missing_features", []))
+    routed["n_features_missing"] = len(missing)
+
+    out = pd.concat([records.reset_index(drop=True), routed.reset_index(drop=True)], axis=1)
+    out.attrs["missing_features"] = missing
+    return out
 
 
 def _class_default_action(class_name: str) -> str:

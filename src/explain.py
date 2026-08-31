@@ -2,7 +2,9 @@
 Per-class SHAP explainability (docs/ARCHITECTURE.md §5).
 
 Deliverable: per-class SHAP on both tracks, saved to runs/, paired with a
-written interpretation of *why* the confusable classes confuse.
+written interpretation of *why* the confusable classes confuse
+(runs/shap_interpretation.md) — attributions without that reading are a
+picture, not an explanation.
 
 Uses shap.TreeExplainer directly on the trained LightGBM booster from each
 track's run bundle — no reimplementation of feature engineering or model

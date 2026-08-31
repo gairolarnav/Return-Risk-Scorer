@@ -1,7 +1,17 @@
 """
 Tests for src/infer.py — regression coverage for the four bugs the Day 5
-rewrite of this module was meant to close. Each test below is named for the
-bug it guards against, not just the function it calls.
+rewrite of this module was meant to close, plus the partial-record handling
+added afterwards. Each test below is named for the bug it guards against, not
+just the function it calls.
+
+The four original bugs:
+  1. a one-row inference frame built its own categorical schema, so LightGBM
+     rejected it ("train and valid dataset categorical_feature do not match")
+  2. the intervention map was keyed by class name and misspelled "Policy
+     Abuser", silently routing that class to an unmapped string
+  3. inference took argmax, bypassing the cost-calibrated decision layer
+  4. inference skipped feature engineering, so served records had a different
+     schema than trained ones
 
 Uses synthetic in-memory bundles/records rather than the trained runs/*.joblib
 artifacts, matching tests/test_features.py's approach — the Kaggle CSV and
@@ -17,7 +27,7 @@ import pytest
 from sklearn.preprocessing import LabelEncoder
 
 from src.evaluate import ACTIONS
-from src.infer import INTERVENTION, load_run, prepare_record, score_record
+from src.infer import INTERVENTION, load_run, prepare_record, score_batch, score_record
 
 CLASSES = ["Fraudulent Return", "Legitimate", "Policy Abuser", "Wardrobing"]
 
@@ -84,9 +94,9 @@ def test_prepare_record_maps_unseen_category_to_nan_not_a_shifted_code():
 def test_load_run_rejects_a_bundle_missing_categories(tmp_path):
     """Bundles written before the Day 5 rewrite lack the `categories` key, and
     load_run must reject them with a clear "retrain" message rather than
-    loading them. A bundle missing categories must fail loudly here, not
-    fall through to prepare_record silently skipping reapplication (bug 1
-    reappearing under a different name)."""
+    loading them. A bundle missing categories that loads anyway falls through
+    to prepare_record silently skipping reapplication — bug 1 reappearing
+    under a different trigger."""
     import joblib
 
     old_style = {
@@ -202,9 +212,13 @@ def test_prepare_record_never_reimplements_feature_engineering(monkeypatch):
     import src.infer as infer_module
 
     monkeypatch.setattr(infer_module, "add_transaction_level_features", lambda df: df)
+    # `avg_order_value_usd` is in feature_cols purely so the record still
+    # supplies *some* recognised feature with engineering stubbed out —
+    # otherwise prepare_frame's "supplies none of the features" guard fires
+    # first and this test stops measuring what it is named for.
     bundle = _bundle(
         model=_StubClassifier([0.25] * 4),
-        feature_cols=["refund_to_avg_order_ratio"],
+        feature_cols=["avg_order_value_usd", "refund_to_avg_order_ratio"],
     )
     record = {"avg_order_value_usd": 100.0, "refund_amount_requested_usd": 50.0}
     frame = prepare_record(record, bundle)
@@ -212,6 +226,75 @@ def test_prepare_record_never_reimplements_feature_engineering(monkeypatch):
     # None) but is NOT the computed ratio — proving the value came from the
     # backfill, not from feature engineering that silently ran twice.
     assert pd.isna(frame["refund_to_avg_order_ratio"].iloc[0])
+
+
+# Partial and malformed records — a caller will not always send all 35 columns
+
+
+def test_partial_record_scores_instead_of_raising_a_dtype_traceback():
+    """A record missing one trained feature must score. The regression: missing
+    columns were backfilled with None, which makes the column `object` dtype,
+    and LightGBM rejects that with a bare 'pandas dtypes must be int, float or
+    bool' traceback — an internal error surfaced to a caller who simply didn't
+    send an optional field."""
+    bundle = _bundle(
+        model=_StubClassifier([0.01, 0.95, 0.02, 0.02]),
+        feature_cols=["avg_order_value_usd", "review_left_after_return"],
+    )
+    frame = prepare_record({"avg_order_value_usd": 100.0}, bundle)
+
+    # The absent column must be float-NaN, not object-None.
+    assert frame["review_left_after_return"].isna().all()
+    assert frame["review_left_after_return"].dtype != object
+
+    result = score_record({"avg_order_value_usd": 100.0}, bundle)
+    assert result["recommended_action"] in ACTIONS
+
+
+def test_partial_record_names_the_features_it_did_not_have():
+    """Scoring on a partial record is allowed but never silent — the omission
+    is reported so a recommendation is not read as if it were made on a
+    complete record."""
+    bundle = _bundle(
+        model=_StubClassifier([0.25] * 4),
+        feature_cols=["avg_order_value_usd", "review_left_after_return", "age"],
+    )
+    result = score_record({"avg_order_value_usd": 100.0}, bundle)
+    assert sorted(result["features_missing"]) == ["age", "review_left_after_return"]
+
+
+def test_complete_record_reports_nothing_missing():
+    bundle = _bundle(
+        model=_StubClassifier([0.25] * 4),
+        feature_cols=["avg_order_value_usd"],
+    )
+    result = score_record({"avg_order_value_usd": 100.0}, bundle)
+    assert result["features_missing"] == []
+
+
+def test_record_with_no_recognisable_features_is_rejected_clearly():
+    """An empty or wrong-schema payload is a caller error, not a partial
+    record. It must raise a message naming the expected schema rather than
+    scoring 35 NaNs and returning a confident-looking probability vector."""
+    bundle = _bundle(
+        model=_StubClassifier([0.25] * 4),
+        feature_cols=["avg_order_value_usd", "age"],
+    )
+    with pytest.raises(ValueError, match="supplies none of the"):
+        score_record({}, bundle)
+
+
+def test_batch_with_a_missing_column_scores_and_counts_it():
+    bundle = _bundle(
+        model=_StubClassifier([0.25] * 4),
+        feature_cols=["avg_order_value_usd", "review_left_after_return"],
+    )
+    records = pd.DataFrame({"avg_order_value_usd": [100.0, 200.0, 300.0]})
+    out = score_batch(records, bundle)
+
+    assert len(out) == 3
+    assert (out["n_features_missing"] == 1).all()
+    assert out.attrs["missing_features"] == ["review_left_after_return"]
 
 
 # load_run — required-key validation in general

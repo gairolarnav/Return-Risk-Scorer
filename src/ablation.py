@@ -45,6 +45,7 @@ from sklearn.preprocessing import LabelEncoder
 
 from src.data_gate import RANDOM_STATE
 from src.features import DROP_COLS, TARGET_COL, build_and_split
+from src.model import as_model_frame
 
 RUNS_DIR = Path("runs")
 
@@ -146,21 +147,6 @@ ABLATION_LADDER: list[tuple[str, list[str]]] = [
 ]
 
 
-def _as_model_frame(train: pd.DataFrame, test: pd.DataFrame, cols: list[str]):
-    """Cast non-numeric columns to a shared categorical dtype.
-
-    Test categories are pinned to the *training* categories deliberately: a
-    category seen only at test time must become NaN rather than silently
-    shifting the integer codes the model was fitted against.
-    """
-    x_train, x_test = train[cols].copy(), test[cols].copy()
-    for col in cols:
-        if not pd.api.types.is_numeric_dtype(x_train[col]):
-            x_train[col] = x_train[col].astype("category")
-            x_test[col] = pd.Categorical(x_test[col], categories=x_train[col].cat.categories)
-    return x_train, x_test
-
-
 def evaluate_feature_set(
     train: pd.DataFrame,
     test: pd.DataFrame,
@@ -176,7 +162,7 @@ def evaluate_feature_set(
     picture is what carries the finding. The absolute headline numbers come
     from src/model.py.
     """
-    x_train, x_test = _as_model_frame(train, test, cols)
+    x_train, x_test = as_model_frame(train, test, cols)
     y_train = label_encoder.transform(train[TARGET_COL])
     y_test = label_encoder.transform(test[TARGET_COL])
 
@@ -207,7 +193,8 @@ def run_ladder(train: pd.DataFrame, test: pd.DataFrame) -> pd.DataFrame:
     rung. Args: already-split train/test frames (see src.features). A rung
     is skipped (not zero-filled) if dropping its columns leaves none —
     that's a bug in a rung definition, not a result worth recording as 0."""
-    label_encoder = LabelEncoder().fit(pd.concat([train[TARGET_COL], test[TARGET_COL]]))
+    # Train only -- see the note in src.model.train_track.
+    label_encoder = LabelEncoder().fit(train[TARGET_COL])
     base_cols = [c for c in train.columns if c != TARGET_COL and c not in DROP_COLS]
 
     rows = []

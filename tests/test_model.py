@@ -1,8 +1,8 @@
 """
-Determinism test for src.model.train_track (underwrites the
-reproducibility claim in docs/ARCHITECTURE.md §8.1: RANDOM_STATE fixed
-everywhere means the same input produces identical output, not merely
-"close" output, across repeated runs).
+Determinism test for src.model.train_track (underwrites the reproducibility
+claim in docs/ARCHITECTURE.md §8.1: RANDOM_STATE fixed everywhere means the
+same input produces identical output, not merely "close" output, across
+repeated runs).
 
 Runs on a small in-memory fixture; never touches the Kaggle CSV.
 """

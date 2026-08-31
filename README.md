@@ -123,7 +123,7 @@ python -m src.explain      # per-class SHAP, both tracks -> runs/shap_*.{json,pn
 python -m src.smote_experiment  # SMOTE vs class-weighted on testbed -> runs/smote_testbed.json
 python -m src.segment_audit     # segment FPR by order-value bucket -> runs/segment_fpr_*.{json,png}
 
-# score a record or a batch CSV (replaces the cut Streamlit demo — see below)
+# score a record or a batch CSV (replaces the cut Streamlit demo — see Status)
 python -m scripts.score --record '{"...": "..."}' --track full
 python -m scripts.score --csv returns.csv --out scored.csv --track testbed
 ```
@@ -153,14 +153,29 @@ Dataset: [E-Commerce Return Abuse Detection](https://www.kaggle.com/datasets/sar
 ## Tests
 
 ```bash
-pytest -q                             # 69 tests
+pytest -q                             # 93 tests
 ruff check src/ scripts/ tests/
 ```
 
-Coverage focuses on the decision layer, where a silently wrong cost matrix
-would produce plausible-looking numbers that are simply false: cost-cell
-placement, Bayes optimality, monotonicity in `C_fp`, the oracle lower bound,
-and the degeneracy detector firing on saturated probabilities.
+Every test runs on committed fixtures — a suite that needs the Kaggle CSV
+could never run in CI or on a reviewer's machine.
+
+Coverage focuses on the claims that would be expensive to get silently wrong:
+
+- **The decision layer**, where a wrong cost matrix produces plausible-looking
+  numbers that are simply false — cost-cell placement, Bayes optimality,
+  monotonicity in `C_fp`, the oracle lower bound, and the degeneracy detector
+  firing on saturated probabilities.
+- **The rule baseline**, whose 0.9188 macro-F1 is the headline finding. The
+  four thresholds are pinned branch by branch, so an edit to the rule fails the
+  suite instead of silently falsifying every document that quotes it.
+- **The serving path**, with one regression test per historical bug in
+  `src/infer.py`, plus partial-record handling — a caller who omits a field
+  gets a scored result that names what was missing, not a library traceback.
+- **The invariants**: no `abuse_label` in the feature matrix, train/test
+  disjoint and ordered in time, no ablation rung retaining an algebraic
+  restatement of a feature it drops, and no module importing a generative or
+  LLM library.
 
 ## Repository layout
 
@@ -177,21 +192,71 @@ src/segment_audit.py     segment-level FPR by order-value bucket
 scripts/score.py   CLI: score a record or CSV, --track, --posture
 notebooks/         presentation only, imports from src, holds no logic —
                     01_eda, 02_feature_engineering, 03_modeling, 04_cost_calibration
-docs/              ARCHITECTURE.md, DATA_NOTES.md, LEAKAGE_FINDING.md,
-                    EVALUATION.md, PITCH.md
+docs/              ARCHITECTURE.md   full design + correction log
+                    LEAKAGE_FINDING.md  the headline result — read this first
+                    DATA_NOTES.md     Day 1 gate findings (generated)
+                    EVALUATION.md     per-class metrics, both cost axes, caveats
+                    PITCH.md          5-minute pitch script
 runs/              metrics JSON, charts, cost-sweep CSVs
 ```
 
+Suggested reading order: this README → `docs/LEAKAGE_FINDING.md` →
+`docs/EVALUATION.md` → `docs/ARCHITECTURE.md`.
+
 ## Status
 
-Every box in the Definition of Done is checked: data gate,
-dual-track build, the cost-calibrated decision layer, the `scripts/score.py`
-CLI, per-class SHAP, the SMOTE keep/discard experiment, the segment-level
-FPR audit, the four presentation notebooks, `docs/EVALUATION.md`,
-`docs/PITCH.md`, the full `docs/ARCHITECTURE.md` reconciliation, and a
-clean-clone-into-a-fresh-venv reproducibility pass (fully reproducible —
-every regenerated number matched, only artifact timestamps differed). See
-`docs/ARCHITECTURE.md` §10 for the authoritative checklist.
+Checked against what is in the repository, not against what was planned. The
+two open items are listed as open rather than quietly dropped.
+
+**Pipeline**
+
+- [x] Day 1 data gate — customer viability, split strategy, leakage sweep
+      (`docs/DATA_NOTES.md`)
+- [x] Temporal train/test split on `return_date`, with the `order_date`
+      alternative measured and rejected
+- [x] Degeneracy ablation ladder (`runs/ablation_ladder.md`)
+- [x] Dual-track build, `full` and `testbed`, never blurred
+- [x] Cost-calibrated decision layer, both sweep axes, degeneracy detector
+
+**Analysis**
+
+- [x] Per-class precision/recall/F1, confusion matrices, PR curves — both
+      tracks (`docs/EVALUATION.md`)
+- [x] Per-class SHAP on both tracks, with a written reading of *why* the
+      confusable classes confuse (`runs/shap_interpretation.md`)
+- [x] SMOTE tested against the class-weighted baseline, with a keep/discard
+      verdict decided by criteria fixed before the result
+      (`runs/smote_verdict.md` — verdict: discard)
+- [x] Segment-level FPR audit by order-value bucket
+      (`runs/segment_fpr_audit.md`)
+- [x] Measured failure-mode disclosure, plus the synthetic-data and
+      task-triviality caveats stated at full strength
+
+**Delivery**
+
+- [x] `scripts/score.py` CLI — single record or batch CSV, `--track`,
+      `--posture`. The planned Streamlit demo was cut; see the correction log
+      in `docs/ARCHITECTURE.md` §11
+- [x] Four presentation notebooks, executed in place, importing from `src`
+      and holding no logic of their own
+- [x] `docs/ARCHITECTURE.md` reconciled — three corrections folded in, §10
+      checklist honest
+- [x] 5-minute pitch script (`docs/PITCH.md`)
+- [x] Clean-clone into a fresh venv, Quickstart run verbatim — fully
+      reproducible; every regenerated number matched, only artifact
+      timestamps differed
+- [x] `pytest -q` green (93 tests), `ruff check src/ scripts/ tests/` clean
+- [x] MIT licence
+- [ ] **Open:** 5-minute pitch *video*. `docs/PITCH.md` is the script;
+      nothing has been recorded.
+
+**Stated limitations of the build itself** (as opposed to the dataset):
+hyperparameters are fixed rather than tuned and there is no validation split —
+the reasoning is in `docs/ARCHITECTURE.md` §5.3 and repeated in
+`docs/EVALUATION.md`. The ablation ladder scores eight feature sets against
+the same temporal test split, so `testbed`'s selection criterion was read off
+that split; this is why `testbed` is labelled a diagnostic rung and never a
+result.
 
 ## Limitations
 

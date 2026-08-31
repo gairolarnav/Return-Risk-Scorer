@@ -61,7 +61,8 @@ def build_parser() -> argparse.ArgumentParser:
         choices=sorted(FEATURE_SETS),
         default="full",
         help="Which trained track to score with (default: full — the honest model; "
-        "'testbed' is a diagnostic rung, never present it as a result — see docs/ARCHITECTURE.md §5.2).",
+        "'testbed' is a diagnostic ablation rung, not a model, and its scores are "
+        "never a result — see docs/ARCHITECTURE.md §5.2).",
     )
     parser.add_argument(
         "--posture",
@@ -110,6 +111,25 @@ def _read_record(args: argparse.Namespace) -> dict:
     return record
 
 
+def _warn_if_partial(missing: list[str]) -> None:
+    """Print a stderr note when the input did not carry every trained feature.
+
+    Scoring proceeds (LightGBM handles NaN, and a real integration will not
+    always carry all 35 columns), but a partial record is a caveat on the
+    recommendation and must not be invisible to whoever runs the command.
+    Stderr, not stdout, so it never contaminates piped JSON/CSV output.
+    """
+    if not missing:
+        return
+    shown = ", ".join(missing[:8])
+    more = f" (+{len(missing) - 8} more)" if len(missing) > 8 else ""
+    print(
+        f"WARNING: {len(missing)} trained feature(s) absent from the input and "
+        f"scored as missing: {shown}{more}",
+        file=sys.stderr,
+    )
+
+
 def run(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     bundle = _load_bundle(args.track, args.run_dir)
@@ -117,6 +137,7 @@ def run(argv: list[str] | None = None) -> int:
     if args.csv is not None:
         records = pd.read_csv(args.csv)
         result = score_batch(records, bundle, posture=args.posture)
+        _warn_if_partial(result.attrs.get("missing_features", []))
         if args.out:
             result.to_csv(args.out, index=False)
             print(f"Scored {len(result)} records -> {args.out}", file=sys.stderr)
@@ -126,6 +147,7 @@ def run(argv: list[str] | None = None) -> int:
 
     record = _read_record(args)
     result = score_record(record, bundle, posture=args.posture)
+    _warn_if_partial(result["features_missing"])
     payload = json.dumps(result, indent=2)
     if args.out:
         Path(args.out).write_text(payload + "\n")

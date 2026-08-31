@@ -30,7 +30,9 @@ def test_every_rung_drags_its_proxies_out_with_it():
 
 
 def test_returns_per_order_does_not_survive_the_rung_that_drops_return_rate_pct():
-    """The exact proxy trap described in src/ablation.py's `_PROXIES`."""
+    """The exact proxy trap described in src/ablation.py's `_PROXIES`:
+    `returns_per_order` is `return_rate_pct / 100`, so a rung that drops the
+    latter while keeping the former has removed nothing."""
     checked_at_least_one = False
     for name, dropped in ABLATION_LADDER:
         if "return_rate_pct" in dropped:

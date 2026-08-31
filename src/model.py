@@ -47,6 +47,13 @@ from src.features import FEATURE_SETS, PROCESSED_DIR, TARGET_COL, feature_column
 
 RUNS_DIR = Path("runs")
 
+# Fixed, not tuned. There is no validation split, no search and no early
+# stopping in this build, and that is deliberate — see docs/ARCHITECTURE.md
+# §5.3. Briefly: the full track sits at 0.9988 macro-F1 with 99.9% of
+# predictions above p=0.99, so a search would optimise in the fourth decimal
+# by fitting the synthetic generator harder, and with only one temporal test
+# split it would have to select against the test set to do it. The tuning
+# effort in this project went into the cost matrix (§6.2), which is swept.
 N_ESTIMATORS = 400
 LEARNING_RATE = 0.05
 
@@ -54,8 +61,9 @@ LEARNING_RATE = 0.05
 def compute_class_weights(y: pd.Series) -> dict:
     """Inverse-frequency class weights (§5).
 
-    Each class gets its own weight rather than a single global multiplier, so
-    the Day 3 tuning pass can move one class without disturbing the others.
+    Each class gets its own weight rather than a single global multiplier, so a
+    later pass can move one class without disturbing the others. No such pass
+    was run — see the note on N_ESTIMATORS/LEARNING_RATE above and §5.3.
     """
     counts = y.value_counts()
     n_classes = len(counts)
@@ -116,7 +124,14 @@ def train_track(
     cols = feature_columns(train, track=track)
     x_train, x_test = as_model_frame(train, test, cols)
 
-    label_encoder = LabelEncoder().fit(pd.concat([train[TARGET_COL], test[TARGET_COL]]))
+    # Fit on TRAIN ONLY. Fitting on train+test would be harmless in effect here
+    # (both splits carry all four classes, so the encoder is identical either
+    # way) but it is still fitting a transformer on the test set, which this
+    # project has no business doing. A class present only at test time would
+    # now raise on transform rather than silently entering the label space --
+    # the correct behaviour: a class the model never trained on cannot be a
+    # prediction target.
+    label_encoder = LabelEncoder().fit(train[TARGET_COL])
     y_train = label_encoder.transform(train[TARGET_COL])
     y_test = label_encoder.transform(test[TARGET_COL])
 
@@ -202,12 +217,18 @@ def rule_baseline_metrics(raw_path: Path = RAW_PATH) -> dict:
     This is the runnable source for the "0.9425 accuracy / 0.9188 macro-F1"
     figure quoted throughout README.md and docs/, which previously existed
     only as prose with no committed code behind it (Day 6 correction: every
-    quoted figure must be regenerable).
+    quoted figure must be regenerable). tests/test_baseline_rule.py pins the
+    four thresholds, so an edit here cannot silently falsify those documents.
     """
     df = pd.read_csv(raw_path)
     pred = apply_hand_written_rule(df)
     y_true = df[TARGET_COL]
-    labels = sorted(y_true.unique())
+    # Union of true and predicted, not `y_true.unique()`. Taking labels from the
+    # true column alone drops any class the rule predicts but that is absent
+    # from y_true, so those predictions vanish from the matrix and the cells no
+    # longer sum to n_rows — the same silent-divergence bug
+    # evaluate.plot_confusion_matrix pins `labels=` to avoid.
+    labels = sorted(set(y_true.unique()) | set(pred.unique()))
     return {
         "n_rows": len(df),
         "accuracy": float(accuracy_score(y_true, pred)),

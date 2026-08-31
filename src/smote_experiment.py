@@ -1,7 +1,10 @@
 """
 SMOTE vs. the class-weighted baseline on `testbed` (docs/ARCHITECTURE.md §5).
 
-Produces a documented keep/discard verdict with the numbers behind it.
+Tests SMOTE against the class-weighted baseline and produces a documented
+keep/discard verdict with the numbers behind it — the decision criteria are
+fixed in code below (KEEP_MARGIN, PRECISION_REGRESSION_TOL) before the result
+is known, so the verdict cannot be written to fit whichever arm won.
 
 Restricted to `testbed`, on purpose. src/model.py's own docstring notes that
 on `full`, class weighting is "very nearly a no-op ... a model at 0.999
@@ -41,7 +44,13 @@ from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.preprocessing import LabelEncoder
 
 from src.features import PROCESSED_DIR, TARGET_COL, feature_columns
-from src.model import LEARNING_RATE, N_ESTIMATORS, RANDOM_STATE, as_model_frame
+from src.model import (
+    LEARNING_RATE,
+    N_ESTIMATORS,
+    RANDOM_STATE,
+    as_model_frame,
+    compute_class_weights,
+)
 
 RUNS_DIR = Path("runs")
 TRACK = "testbed"  # SMOTE is evaluated on testbed only -- see module docstring.
@@ -138,7 +147,8 @@ def run() -> dict:
     cols = feature_columns(train, track=TRACK)
     x_train, x_test = as_model_frame(train, test, cols)
 
-    label_encoder = LabelEncoder().fit(pd.concat([train[TARGET_COL], test[TARGET_COL]]))
+    # Train only -- see the note in src.model.train_track.
+    label_encoder = LabelEncoder().fit(train[TARGET_COL])
     y_train = label_encoder.transform(train[TARGET_COL])
     y_test = label_encoder.transform(test[TARGET_COL])
     class_names = list(label_encoder.classes_)
@@ -156,12 +166,13 @@ def run() -> dict:
         if isinstance(x_train[c].dtype, pd.CategoricalDtype):
             x_res[c] = pd.Categorical(x_res[c], categories=x_train[c].cat.categories)
 
-    # Class-weighted baseline: identical weighting logic to
-    # src.model.compute_class_weights, re-fit here (not read from
-    # runs/model_testbed.json) so both arms come from the same code in the
-    # same run -- a fair paired comparison.
-    counts = train[TARGET_COL].value_counts()
-    weights = {cls: len(train) / (len(counts) * count) for cls, count in counts.items()}
+    # Class-weighted baseline: src.model.compute_class_weights itself, not a
+    # copy of its arithmetic. The model is re-fit here (rather than read from
+    # runs/model_testbed.json) so both arms come from the same code in the same
+    # run -- a fair paired comparison. Re-fitting the model does not require
+    # reimplementing the weighting, and a second copy that drifted would make
+    # the "baseline" this experiment measures against quietly not the baseline.
+    weights = compute_class_weights(train[TARGET_COL])
     sample_weight = train[TARGET_COL].map(weights).to_numpy()
     baseline = _fit_and_evaluate(x_train, y_train, x_test, y_test, class_names, sample_weight)
 

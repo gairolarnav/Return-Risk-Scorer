@@ -53,8 +53,8 @@ def _all_python_files():
 
 def test_no_generative_or_llm_dependencies():
     """No module under src/ or scripts/ may import a generative/LLM library.
-    (app/ was cut from scope entirely -- CLAUDE.md "Scope change: no demo
-    app" -- so there is nothing under app/ to check.)"""
+    (The planned app/ directory was cut from scope -- see the correction log in
+    docs/ARCHITECTURE.md §11 -- so there is nothing under app/ to check.)"""
     offenders = {}
     for path in _all_python_files():
         imported = _imported_module_names(path)

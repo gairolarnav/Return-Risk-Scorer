@@ -244,6 +244,24 @@ worse than the plan expected.
 
 ---
 
+## Untuned-model caveat
+
+**Every number in this document comes from an untuned model.** There is no
+validation split, no hyperparameter search and no early stopping; both tracks
+use `N_ESTIMATORS = 400`, `LEARNING_RATE = 0.05`, fixed in `src/model.py` and
+never moved. The reasoning is in `docs/ARCHITECTURE.md` §5.3, and the short
+version is that a model at 0.9988 macro-F1 with 99.9% of predictions above
+p=0.99 offers nothing to tune toward except a tighter fit to the synthetic
+generator — which is the behaviour this project's headline finding argues
+against rewarding.
+
+So these are not "the best LightGBM can do on this data," and are not offered
+as such. They are what a reasonable default does. On a non-degenerate dataset
+that gap would be the first thing to close, with a three-way
+train/validation/test split and the test set touched once.
+
+---
+
 ## Reproduce this document
 
 ```bash

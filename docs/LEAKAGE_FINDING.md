@@ -21,6 +21,16 @@ with `abuse_label` already removed:
 Per ARCHITECTURE.md §6.4, anything above ~0.95 is treated as a leakage
 signal, not a result, and blocks progress until explained. It did.
 
+> **Why this says 0.9986 and the README says 0.9988.** They are different
+> measurements, not a typo. This document narrates the *unweighted* baseline
+> that tripped the gate — reproduce it with
+> `train_track(train, test, "full", class_weighted=False)`. The shipped `full`
+> track adds inverse-frequency class weighting (ARCHITECTURE.md §5) and scores
+> 0.9988 / 0.9995; that is what `runs/model_full.json` holds and what
+> `README.md` and `docs/EVALUATION.md` report. The 0.0002 gap is the point:
+> class weighting is very nearly a no-op on a model this saturated, because
+> there is no minority-class recall left to recover.
+
 ---
 
 ## Finding 1 — `abuse_label` is a 1:1 encoding of the target
@@ -130,7 +140,9 @@ Runnable source: `src.model.rule_baseline_metrics()`, run against the full
 raw CSV (not the train/test split — the point is generator separability,
 not generalisation). Output committed at `runs/baseline_rule.json`. This
 number existed only as prose until the Day 6 correction, which required every
-quoted figure to be regenerable from committed code.
+quoted figure to be regenerable from committed code. `tests/test_baseline_rule.py`
+now pins the four thresholds, so an edit to the rule cannot silently falsify
+this document.
 
 ---
 
@@ -175,6 +187,16 @@ model, essentially no such rows exist:
 | F. E − customer_support_contacts | 28 | 0.9342 | 8.4% |
 | **G. F − previous_dispute_count** | **27** | **0.8993** | **16.1%** |
 | H. G − avg_order_value, refund_amount | 24 | 0.8581 | 23.9% |
+
+> **Rung G reads 0.8993 here; the `testbed` track reads 0.8967.** Same 27
+> features, different fit — not a discrepancy. This ladder is a comparative
+> sweep across eight feature sets, so `src/ablation.py` fits a lighter model
+> (150 trees at lr 0.08, unweighted); only the relative shape of the curve
+> carries the finding. The shipped `testbed` track is fit by `src/model.py`
+> with the same hyperparameters as `full` (400 trees at lr 0.05,
+> class-weighted), so the two tracks stay comparable to each other. Ladder
+> numbers live in `runs/ablation_ladder.json`, track numbers in
+> `runs/model_testbed.json`.
 
 Measured directly (`src/evaluate.py`, `runs/evaluation_full.json`): on the
 full model **every merchant posture from `C_fp:C_fn` = 0.03 to 32 produces
