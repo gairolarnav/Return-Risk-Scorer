@@ -62,6 +62,8 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import label_binarize
 
+from src.data_gate import NEEDS_MODEL, require_artifacts
+
 RUNS_DIR = Path("runs")
 
 # Actions the decision layer can route to (ARCHITECTURE.md §1/§3), ordered
@@ -557,12 +559,25 @@ def evaluate_track(track: str) -> dict:
     superset — ambiguous_class_pairs' output is written separately to
     runs/ambiguity_{track}.json rather than folded in here, so that
     already-committed file's content never changes when this runs again).
-    Raises FileNotFoundError with a specific "run src.model first" message
-    rather than a bare traceback if the model hasn't been trained yet.
+    Exits with a "run src.model first" message rather than a bare traceback if
+    the model hasn't been trained yet.
     """
     run_json = RUNS_DIR / f"model_{track}.json"
-    if not run_json.exists():
-        raise FileNotFoundError(f"{run_json} not found. Run `python -m src.model` first.")
+    # All four artifacts, not just the JSON. The JSON is committed (it holds the
+    # headline numbers, so a reviewer can read them without the dataset) while
+    # the arrays and the testbed bundle are gitignored — so guarding on the JSON
+    # alone checked the one file that is always present and then died on
+    # np.load. That made this the only unreachable error path in the repo, and
+    # a clean clone got a bare FileNotFoundError from library depth instead.
+    require_artifacts(
+        [
+            run_json,
+            RUNS_DIR / f"model_{track}_proba.npy",
+            RUNS_DIR / f"model_{track}_ytest.npy",
+            RUNS_DIR / f"model_{track}.joblib",
+        ],
+        NEEDS_MODEL,
+    )
 
     meta = json.loads(run_json.read_text())
     proba = np.load(RUNS_DIR / f"model_{track}_proba.npy")

@@ -43,6 +43,7 @@ from imblearn.over_sampling import SMOTENC
 from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.preprocessing import LabelEncoder
 
+from src.data_gate import NEEDS_FEATURES, require_artifacts
 from src.features import PROCESSED_DIR, TARGET_COL, feature_columns
 from src.model import (
     LEARNING_RATE,
@@ -142,6 +143,9 @@ def run() -> dict:
     model.joblib, since this needs to refit from scratch for a fair
     paired comparison (see module docstring).
     """
+    require_artifacts(
+        [PROCESSED_DIR / "train.parquet", PROCESSED_DIR / "test.parquet"], NEEDS_FEATURES
+    )
     train = pd.read_parquet(PROCESSED_DIR / "train.parquet")
     test = pd.read_parquet(PROCESSED_DIR / "test.parquet")
     cols = feature_columns(train, track=TRACK)

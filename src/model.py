@@ -42,7 +42,13 @@ import pandas as pd
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
 from sklearn.preprocessing import LabelEncoder
 
-from src.data_gate import RANDOM_STATE, RAW_PATH
+from src.data_gate import (
+    NEEDS_FEATURES,
+    NEEDS_RAW_CSV,
+    RANDOM_STATE,
+    RAW_PATH,
+    require_artifacts,
+)
 from src.features import FEATURE_SETS, PROCESSED_DIR, TARGET_COL, feature_columns
 
 RUNS_DIR = Path("runs")
@@ -273,6 +279,14 @@ def run(tracks: list[str] | None = None) -> None:
     save each to runs/model_{track}.*, then compute and save the track-
     independent rule baseline. Reads data/processed/*.parquet, which must
     already exist (run src.features first)."""
+    require_artifacts(
+        [PROCESSED_DIR / "train.parquet", PROCESSED_DIR / "test.parquet"], NEEDS_FEATURES
+    )
+    # Checked up front rather than after training: rule_baseline_metrics reads
+    # the raw CSV at the very end of this function, and discovering it is
+    # missing there would throw away both tracks' fits.
+    require_artifacts([RAW_PATH], NEEDS_RAW_CSV)
+
     train = pd.read_parquet(PROCESSED_DIR / "train.parquet")
     test = pd.read_parquet(PROCESSED_DIR / "test.parquet")
 

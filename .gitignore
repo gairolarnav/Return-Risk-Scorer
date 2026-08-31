@@ -15,6 +15,14 @@ data/processed/*.parquet
 *.joblib
 runs/*.npy
 
+# ...with one exception. The `full` track's bundle (3.2M) IS committed, so that
+# `python -m scripts.score --record-file examples/record.json` works immediately
+# after clone + pip install. Without it the demo needed a Kaggle download and a
+# full retrain before it would produce a single prediction, which is too much to
+# ask of a reviewer. The testbed bundle stays out: it is a diagnostic rung, not
+# a model, and it is the larger of the two.
+!runs/model_full.joblib
+
 .ruff_cache/
 .pytest_cache/
 .ipynb_checkpoints/

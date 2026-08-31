@@ -138,12 +138,18 @@ python -m src.smote_experiment  # SMOTE vs class-weighted on testbed -> runs/smo
 python -m src.segment_audit     # segment FPR by order-value bucket -> runs/segment_fpr_*.{json,png}
 
 # score a record or a batch CSV (replaces the cut Streamlit demo — see Status)
-python -m scripts.score --record '{"...": "..."}' --track full
-python -m scripts.score --csv returns.csv --out scored.csv --track testbed
+python -m scripts.score --record-file examples/record.json --track full
+python -m scripts.score --csv examples/sample_returns.csv --out scored.csv
 ```
 
 Dataset: [E-Commerce Return Abuse Detection](https://www.kaggle.com/datasets/sarveshchhetri/e-commerce-return-abuse-detection-dataset)
 (Kaggle, synthetic, 60,000 × 35).
+
+**The scoring step needs no dataset and no training run.** `runs/model_full.joblib`
+and `examples/` are committed, so the two commands above work directly after
+`pip install`. Everything above them does need the Kaggle CSV; each stage checks
+its inputs up front and prints the command that produces them rather than a
+stack trace. See [`examples/README.md`](examples/README.md).
 
 ## Method notes
 
@@ -167,7 +173,7 @@ Dataset: [E-Commerce Return Abuse Detection](https://www.kaggle.com/datasets/sar
 ## Tests
 
 ```bash
-pytest -q                             # 93 tests
+pytest -q                             # 106 tests
 ruff check src/ scripts/ tests/
 ```
 
@@ -204,6 +210,7 @@ src/explain.py     per-class SHAP, both tracks
 src/smote_experiment.py  SMOTE vs class-weighted on testbed
 src/segment_audit.py     segment-level FPR by order-value bucket
 scripts/score.py   CLI: score a record or CSV, --track, --posture, --friction
+examples/          one record + a 20-row CSV, so the CLI runs with no dataset
 notebooks/         presentation only, imports from src, holds no logic —
                     01_eda, 02_feature_engineering, 03_modeling, 04_cost_calibration
 docs/              ARCHITECTURE.md   full design + correction log
@@ -211,7 +218,7 @@ docs/              ARCHITECTURE.md   full design + correction log
                     DATA_NOTES.md     Day 1 gate findings (generated)
                     EVALUATION.md     per-class metrics, both cost axes, caveats
                     PITCH.md          5-minute pitch script
-runs/              metrics JSON, charts, cost-sweep CSVs
+runs/              metrics JSON, charts, cost-sweep CSVs, model_full.joblib
 ```
 
 Suggested reading order: this README → `docs/LEAKAGE_FINDING.md` →
@@ -259,7 +266,7 @@ two open items are listed as open rather than quietly dropped.
 - [x] Clean-clone into a fresh venv, Quickstart run verbatim — fully
       reproducible; every regenerated number matched, only artifact
       timestamps differed
-- [x] `pytest -q` green (93 tests), `ruff check src/ scripts/ tests/` clean
+- [x] `pytest -q` green (106 tests), `ruff check src/ scripts/ tests/` clean
 - [x] MIT licence
 - [ ] **Open:** 5-minute pitch *video*. `docs/PITCH.md` is the script;
       nothing has been recorded.

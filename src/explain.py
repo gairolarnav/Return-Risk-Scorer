@@ -34,6 +34,7 @@ import numpy as np
 import pandas as pd
 import shap
 
+from src.data_gate import NEEDS_FEATURES, NEEDS_MODEL, require_artifacts
 from src.features import PROCESSED_DIR
 from src.infer import load_run
 
@@ -56,6 +57,8 @@ def load_test_frame(bundle: dict) -> pd.DataFrame:
 
 def compute_shap_values(track: str) -> tuple[np.ndarray, pd.DataFrame, list[str]]:
     """Returns (shap_values[n_rows, n_features, n_classes], X, class_names)."""
+    require_artifacts([RUNS_DIR / f"model_{track}.joblib"], NEEDS_MODEL)
+    require_artifacts([PROCESSED_DIR / "test.parquet"], NEEDS_FEATURES)
     bundle = load_run(RUNS_DIR / f"model_{track}")
     frame = load_test_frame(bundle)
     class_names = list(bundle["label_encoder"].classes_)

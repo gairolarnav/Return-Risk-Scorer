@@ -514,10 +514,27 @@ return-risk-scorer/
 
 **On notebooks vs. `src/`:** the four notebooks exist for presentation and exploration only. They import from `src` and contain no logic of their own. The failure mode otherwise is two divergent implementations of the same feature builder, which a reviewer will find and which invalidates any number the notebook produces.
 
-**On what is and isn't committed (added Day 6).** `runs/` **is** committed and
-`data/raw/` is **not**. Most reviewers will never download a 60k-row Kaggle CSV,
-so every headline number must be readable from the repo alone. Committing
-someone else's dataset is separately a bloat and licensing problem.
+**On what is and isn't committed (added Day 6, extended Day 7).** `runs/` **is**
+committed and `data/raw/` is **not**. Most reviewers will never download a 60k-row
+Kaggle CSV, so every headline number must be readable from the repo alone.
+Committing someone else's dataset is separately a bloat and licensing problem.
+
+Day 7 extends that principle from the numbers to the demo. The same reviewer who
+will not download the dataset also will not run a training pipeline to see one
+prediction, and until Day 7 that is exactly what `scripts/score.py` required —
+model bundles are gitignored, so the CLI could not produce a single score from a
+clean clone. Now committed:
+
+- **`runs/model_full.joblib`** (3.2M). The `testbed` bundle stays out: it is a
+  diagnostic rung rather than a model (§5.2), and it is the larger file.
+- **`examples/record.json`** and **`examples/sample_returns.csv`** — 1 and 20
+  real records, drawn from the **test window only**, so they are rows the
+  committed bundle never trained on. `abuse_label` dropped per DROP_COLS;
+  `abuse_type` kept so predictions can be checked against truth.
+
+This is a reversal of the "no model binaries" position and is logged as one in
+§11. The bloat argument still holds against the dataset itself — 20 rows is not
+redistributing it — and 3.2M is a proportionate price for a demo that runs.
 
 ---
 
@@ -581,9 +598,15 @@ python -m src.explain          # per-class SHAP, both tracks
 python -m src.smote_experiment # SMOTE vs class-weighted on testbed
 python -m src.segment_audit    # segment FPR by order-value bucket
 
-# score a record or a batch CSV -> routed intervention (replaces the cut demo)
-python -m scripts.score --record '{"...": "..."}' --track full
-python -m scripts.score --csv returns.csv --out scored.csv --track testbed
+# score a record or a batch CSV -> routed intervention (replaces the cut demo).
+# These two need NO dataset and no training run: runs/model_full.joblib and
+# examples/ are committed, so they work straight after pip install.
+python -m scripts.score --record-file examples/record.json --track full
+python -m scripts.score --csv examples/sample_returns.csv --out scored.csv
+
+# the friction axis, the one that moves (needs the testbed bundle, so train first)
+python -m scripts.score --csv examples/sample_returns.csv --track testbed \
+    --friction "recovery-first (1:20)"
 
 # no dataset? every headline number is committed:
 #   runs/evaluation_full.json, runs/evaluation_testbed.json,
@@ -781,6 +804,8 @@ see the shape of what changed at a glance. Entries are never deleted.
 | Day 6 | §9 Day 6 | "3–4 pytest tests on `features.py`" | Nine-test plan ranked by claim defended (§9.3) | Leakage finding changed what needs guarding |
 | Day 6 | §8, §10 | Streamlit demo app at `app/demo.py` | **Cut.** Replaced by `scripts/score.py`, a CLI over the same `src.infer` path | A UI shell demonstrates nothing the CLI doesn't; the decision layer is the deliverable, and a second scoring path is the two-implementations failure mode §8 warns about |
 | Day 6 | §4.2 | OPEN — whether trailing/temporal aggregates are "live" for the 1,945 repeat customers | **Closed: they aren't a real aggregate at all** — `total_orders_lifetime` etc. are independent per-row generator snapshots, non-monotonic across a customer's own rows (78 → 57 → 12 → 14 in one real case) | Checked directly against the raw CSV's repeat-customer rows while writing the T.2 temporal-leakage test |
+| Day 7 | §8 | No model binaries committed; `runs/` carries JSON and charts only | **`runs/model_full.joblib` committed**, plus `examples/` | The stated goal of committing `runs/` was that a reviewer without the dataset can still see the work. That reasoning covers the numbers but stopped short of the demo: with every bundle gitignored, `scripts/score.py` could not produce one prediction from a clean clone, and the only `--record` example in the docs was a `{"...": "..."}` placeholder that raises. 3.2M buys a demo that runs on `pip install` |
+| Day 7 | §8.2 | Pipeline stages fail with whatever exception the missing file raises | `require_artifacts` at each entry point: lists what is missing, names the command that builds it, exits 1 | Seven of eight `python -m src.*` entry points ended in a bare `FileNotFoundError` from library depth on a clean clone. `src/evaluate.py`'s was worse than absent — it guarded `model_{track}.json`, which *is* committed, then died on the gitignored `.npy`, so its friendly message was unreachable code |
 | Day 7 | §8, §6.2 | The scoring CLI exposes the cost policy through `--posture` alone | **`--friction` added**, and `--posture`'s help text corrected to state that it is the near-inert axis | The Day 4 correction moved the centerpiece to the friction axis, but the serving path was never updated to match: `src/infer.py` called `build_cost_matrix` without a `friction_cost`, silently taking the default, so the one axis §6.2 calls the deliverable could not be moved at the point of use. Measured before the fix: all three `--posture` values produce byte-identical actions for 12,000 of 12,000 rows on `full`, and differ on 29 at the extremes on `testbed`. `--friction` moves 764–1,219. Its `balanced (1:2)` default is the previously hardcoded value, so no committed artifact changed |
 
 **On keeping this log.** Every entry is a place the plan was wrong, and

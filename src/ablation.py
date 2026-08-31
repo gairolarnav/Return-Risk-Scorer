@@ -43,7 +43,7 @@ import pandas as pd
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import LabelEncoder
 
-from src.data_gate import RANDOM_STATE
+from src.data_gate import NEEDS_RAW_CSV, RANDOM_STATE, RAW_PATH, require_artifacts
 from src.features import DROP_COLS, TARGET_COL, build_and_split
 from src.model import as_model_frame
 
@@ -216,6 +216,7 @@ def run() -> None:
     """CLI entrypoint: run the full ladder and write
     runs/ablation_ladder.{json,md}. Reads the raw CSV via
     src.features.build_and_split (no cached parquet path)."""
+    require_artifacts([RAW_PATH], NEEDS_RAW_CSV)
     train, test = build_and_split()
     print(f"{'feature set':<40}{'n':>4}{'macro-F1':>10}{'thr-sens':>10}")
     ladder = run_ladder(train, test)

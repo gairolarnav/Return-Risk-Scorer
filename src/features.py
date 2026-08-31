@@ -37,7 +37,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.data_gate import RAW_PATH
+from src.data_gate import NEEDS_RAW_CSV, RAW_PATH, require_artifacts
 
 PROCESSED_DIR = Path("data/processed")
 
@@ -208,6 +208,7 @@ def run(raw_path: Path = RAW_PATH) -> None:
     files rather than recomputing the split; src/ablation.py calls
     build_and_split directly instead, since its ladder needs the full
     unfiltered column set fresh each time."""
+    require_artifacts([raw_path], NEEDS_RAW_CSV)
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     train, test = build_and_split(raw_path)
     train.to_parquet(PROCESSED_DIR / "train.parquet", index=False)

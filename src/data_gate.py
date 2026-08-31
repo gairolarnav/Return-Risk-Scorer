@@ -54,6 +54,44 @@ RANDOM_STATE = 42
 RAW_PATH = Path("data/raw/returns.csv")
 DATA_NOTES_PATH = Path("docs/DATA_NOTES.md")
 
+# Standard remedies, so every stage names the same command for the same missing
+# prerequisite instead of each phrasing it slightly differently.
+NEEDS_RAW_CSV = (
+    "Place the Kaggle CSV there (see README Quickstart) and re-run.\n"
+    "    Dataset: https://www.kaggle.com/datasets/sarveshchhetri/"
+    "e-commerce-return-abuse-detection-dataset"
+)
+NEEDS_FEATURES = "Build the processed splits first:\n    python -m src.features"
+NEEDS_MODEL = "Train the tracks first:\n    python -m src.model"
+
+
+def require_artifacts(paths, remedy: str) -> None:
+    """Exit with a remedy instead of a traceback when a pipeline stage's inputs
+    are missing.
+
+    Every stage after `src.data_gate` depends on an artifact an earlier stage
+    writes, and most of those artifacts are gitignored by design (the raw CSV,
+    the parquet splits, the model bundles). So "the file isn't there yet" is the
+    single most likely thing to happen to someone running this repo for the
+    first time, and it was producing a bare FileNotFoundError from library depth
+    in seven of eight entry points — the reviewer's first impression of the
+    project being a stack trace.
+
+    Args: `paths` — the files the stage actually reads, checked together so the
+        message lists everything missing rather than failing on the first one;
+        `remedy` — the command that produces them (see the NEEDS_* constants).
+    Raises SystemExit(1) after printing to stderr. Never returns non-None.
+    """
+    missing = [Path(p) for p in paths if not Path(p).exists()]
+    if not missing:
+        return
+    listed = "\n".join(f"  - {p}" for p in missing)
+    print(
+        f"ERROR: {len(missing)} required input(s) not found:\n{listed}\n\n{remedy}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
 TARGET_COL_CANDIDATES = ["abuse_type", "return_type", "label", "class", "target"]
 CUSTOMER_ID_CANDIDATES = [
     "customer_id", "customerid", "user_id", "userid", "cust_id", "buyer_id",
@@ -369,14 +407,7 @@ def run(raw_path: Path = RAW_PATH) -> None:
     """CLI entrypoint: run all three gates against `raw_path` and write
     docs/DATA_NOTES.md. Exits with a clear message (not a traceback) if the
     raw CSV isn't present, since that's the first thing a fresh clone hits."""
-    if not raw_path.exists():
-        print(
-            f"ERROR: raw data not found at {raw_path}.\n"
-            "Place the Kaggle CSV there (see README Quickstart) and re-run:\n"
-            "    python -m src.data_gate",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    require_artifacts([raw_path], NEEDS_RAW_CSV)
 
     df = pd.read_csv(raw_path)
     target_col = _detect_target(df)

@@ -46,6 +46,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from src.data_gate import NEEDS_FEATURES, NEEDS_MODEL, require_artifacts
 from src.evaluate import ACTIONS, DEFAULT_POSTURES, build_cost_matrix, expected_cost_decision
 from src.features import FEATURE_SETS, PROCESSED_DIR
 
@@ -131,6 +132,16 @@ def audit_track(track: str, posture: str = "loss-neutral (1:1)") -> dict:
     of row-alignment, rather than silently mismatching buckets to the
     wrong rows.
     """
+    require_artifacts(
+        [
+            RUNS_DIR / f"model_{track}_proba.npy",
+            RUNS_DIR / f"model_{track}_ytest.npy",
+            RUNS_DIR / f"model_{track}.joblib",
+        ],
+        NEEDS_MODEL,
+    )
+    require_artifacts([PROCESSED_DIR / "test.parquet"], NEEDS_FEATURES)
+
     proba = np.load(RUNS_DIR / f"model_{track}_proba.npy")
     y_true_idx = np.load(RUNS_DIR / f"model_{track}_ytest.npy")
     bundle = joblib.load(RUNS_DIR / f"model_{track}.joblib")
