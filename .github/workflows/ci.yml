@@ -11,6 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # tests/test_git_attribution.py walks the whole reachable history.
+          # checkout defaults to a depth-1 shallow clone, under which `git log
+          # --all` sees one commit and the guard is nearly vacuous.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:

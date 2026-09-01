@@ -178,7 +178,7 @@ stack trace. See [`examples/README.md`](examples/README.md).
 ## Tests
 
 ```bash
-pytest -q                             # 106 tests
+pytest -q                             # 108 tests
 ruff check src/ scripts/ tests/
 ```
 
@@ -201,6 +201,14 @@ Coverage focuses on the claims that would be expensive to get silently wrong:
   disjoint and ordered in time, no ablation rung retaining an algebraic
   restatement of a feature it drops, and no module importing a generative or
   LLM library.
+- **Commit attribution.** GitHub builds the contributor list from commit
+  identity *and* from `Co-Authored-By` trailers, and agent sessions are
+  instructed to append them. `.githooks/commit-msg` strips those trailers at
+  commit time; `tests/test_git_attribution.py` walks the whole reachable
+  history as the backstop, since a hook is local config and is absent in CI and
+  in any fresh clone. The message check is line-anchored to trailer patterns
+  rather than scanning prose, so a commit that documents this policy stays
+  legal.
 
 ## Repository layout
 
@@ -271,8 +279,11 @@ two open items are listed as open rather than quietly dropped.
 - [x] Clean-clone into a fresh venv, Quickstart run verbatim — fully
       reproducible; every regenerated number matched, only artifact
       timestamps differed
-- [x] `pytest -q` green (106 tests), `ruff check src/ scripts/ tests/` clean
+- [x] `pytest -q` green (108 tests), `ruff check src/ scripts/ tests/` clean
 - [x] MIT licence
+- [x] Commit attribution guard — `.githooks/commit-msg` strips agent
+      `Co-Authored-By` / `Claude-Session` trailers, with
+      `tests/test_git_attribution.py` enforcing it over the whole history in CI
 - [ ] **Open:** 5-minute pitch *video*. `docs/PITCH.md` is the script;
       nothing has been recorded.
 
