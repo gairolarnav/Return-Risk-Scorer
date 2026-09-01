@@ -122,6 +122,11 @@ got hard" is not a modelling achievement, and the repo says so out loud.
 ```bash
 git clone https://github.com/gairolarnav/Return-Risk-Scorer.git
 cd Return-Risk-Scorer
+
+# Hook path is local config, so it does not survive a clone — set it once here.
+# .githooks/commit-msg strips agent attribution trailers; see Tests.
+git config core.hooksPath .githooks
+
 python3.11 -m venv venv && source venv/bin/activate
 # macOS on Apple Silicon — LightGBM installs but fails at import without this:
 brew install libomp

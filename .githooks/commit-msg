@@ -1,0 +1,57 @@
+#!/bin/sh
+#
+# Strip Claude Code attribution trailers from commit messages.
+#
+# Why this exists: agent sessions are instructed to append
+# "Co-Authored-By: Claude ..." and "Claude-Session: ..." trailers to every
+# commit. GitHub reads Co-Authored-By and credits the named identity in the
+# repository's contributor list, which is not wanted here -- it happened once
+# already and cost a history rewrite and a force-push to undo.
+#
+# Strips rather than rejects: a rejected commit aborts mid-flow and gets
+# retried blind, whereas stripping always succeeds and is idempotent. The
+# removal is announced on stderr so it is visible rather than silent policy.
+#
+# Scope is the message only. Author/committer identity comes from user.name
+# and user.email; tests/test_git_attribution.py is what guards those.
+#
+# Activate with:  git config core.hooksPath .githooks
+# (local config -- re-run it after a fresh clone)
+
+msg_file="$1"
+[ -f "$msg_file" ] || exit 0
+
+tmp="$msg_file.declawed"
+
+# Drop the attribution lines. -i makes the match case-insensitive; the
+# patterns are anchored so a commit that *discusses* these trailers in prose
+# keeps its body intact.
+grep -v -i -E \
+  -e '^Co-authored-by:.*(claude|anthropic)' \
+  -e '^Claude-Session:[[:space:]]' \
+  -e '^.{0,4}Generated with \[Claude Code\]' \
+  -e '^[[:space:]]*https://claude\.ai/code/session_' \
+  "$msg_file" > "$tmp"
+
+if cmp -s "$msg_file" "$tmp"; then
+    rm -f "$tmp"
+    exit 0
+fi
+
+removed=$(grep -c -i -E \
+  -e '^Co-authored-by:.*(claude|anthropic)' \
+  -e '^Claude-Session:[[:space:]]' \
+  -e '^.{0,4}Generated with \[Claude Code\]' \
+  -e '^[[:space:]]*https://claude\.ai/code/session_' \
+  "$msg_file")
+
+# Removing a trailer block leaves the blank line that separated it from the
+# body. Collapse trailing blank lines so the message does not end in padding.
+awk 'BEGIN { blanks = 0 }
+     /^[[:space:]]*$/ { blanks++; next }
+     { while (blanks > 0) { print ""; blanks-- } print }' "$tmp" > "$msg_file"
+
+rm -f "$tmp"
+
+echo "commit-msg: stripped $removed Claude attribution line(s) from the commit message." >&2
+exit 0
