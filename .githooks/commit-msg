@@ -24,8 +24,12 @@ msg_file="$1"
 tmp="$msg_file.declawed"
 
 # Drop the attribution lines. -i makes the match case-insensitive; the
-# patterns are anchored so a commit that *discusses* these trailers in prose
-# keeps its body intact.
+# patterns stay anchored HERE, and only here, because this hook *edits* the
+# message. An unanchored match would silently delete a prose line mid-body and
+# mangle the text. Refusing is the right response to prose, and refusing is
+# what .githooks/pre-push and tests/test_git_attribution.py now do -- both scan
+# the token unanchored. This hook handles the clean case (a real trailer on its
+# own line); they handle the rest.
 grep -v -i -E \
   -e '^Co-authored-by:.*(claude|anthropic)' \
   -e '^Claude-Session:[[:space:]]' \

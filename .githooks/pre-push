@@ -1,0 +1,120 @@
+#!/bin/sh
+#
+# Refuse to push commits that credit an agent as author, committer or
+# co-author.
+#
+# Why this exists alongside .githooks/commit-msg: that hook strips attribution
+# trailers as a commit is written, which is the right place to fix the common
+# case, but it is not a gate. It does nothing for a commit made with
+# --no-verify, nothing in a clone where core.hooksPath was never set, and
+# nothing about the author/committer identity fields, which it cannot rewrite.
+# tests/test_git_attribution.py catches all of those -- but it runs in CI,
+# which is *after* the push, and by then GitHub has already read the identity
+# and credited it in the contributor list. Undoing that costs a history
+# rewrite and a force-push; it has happened once here already.
+#
+# So this is the last gate before GitHub sees anything, and it is the only one
+# positioned to prevent rather than to detect.
+#
+# Rejects rather than strips: at push time the commits already exist and their
+# messages are immutable, so the only honest options are to refuse and name
+# what to fix. Contrast commit-msg, which can still edit the message in place
+# and therefore strips instead of aborting.
+#
+# Activate with:  git config core.hooksPath .githooks
+# (local config -- re-run it after a fresh clone)
+
+remote_name="$1"
+
+# A branch deletion or a brand-new branch arrives as an all-zero sha.
+is_zero_sha() {
+    case "$1" in
+        *[!0]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+# Identity fields get a plain substring scan: no legitimate name or address in
+# this repo contains these words, so there is no prose to protect.
+scan_identity() {
+    git show -s --format='%an%n%ae%n%cn%n%ce' "$1" |
+        grep -i -E 'claude|anthropic'
+}
+
+# Message bodies are scanned for the trailer token ANYWHERE in a line, not
+# only at line start.
+#
+# This used to be line-anchored, on the reasoning that GitHub attributes from
+# trailer lines and a commit that *describes* the policy should stay pushable.
+# That reasoning cost a repository. The commit which introduced the commit-msg
+# hook quoted the token in its own prose; that prose survived every anchored
+# check here and in CI, and left the literal string sitting in pushed history
+# where nothing could distinguish it from the real thing at a glance.
+#
+# So the token is now banned outright. Write "co-author trailer" when you need
+# to discuss it -- the surrounding comments in these hooks do exactly that, and
+# read no worse for it. Losing the ability to quote the token verbatim in a
+# commit message is a trivial price next to re-auditing a contributor list.
+#
+# These mirror tests/test_git_attribution.py; both change together.
+# .githooks/commit-msg deliberately stays anchored -- see the note there.
+scan_trailers() {
+    git show -s --format='%B' "$1" | grep -i -E \
+        -e 'Co-authored-by:' \
+        -e 'Claude-Session:' \
+        -e 'Generated with \[Claude Code\]' \
+        -e 'https://claude\.ai/code/session_'
+}
+
+offenders=""
+
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+    # Deleting a remote branch pushes no commits to inspect.
+    is_zero_sha "$local_sha" && continue
+
+    if is_zero_sha "$remote_sha"; then
+        # New branch: everything on it that is not already on some remote.
+        # Unquoted on purpose -- these are two arguments, not one.
+        # shellcheck disable=SC2086
+        commits=$(git rev-list "$local_sha" --not --remotes="$remote_name")
+    else
+        commits=$(git rev-list "$remote_sha..$local_sha")
+    fi
+
+    for sha in $commits; do
+        # Collect every offender rather than stopping at the first: when a
+        # rewrite is needed, the useful output is the full list of shas.
+        hit=$(scan_identity "$sha")
+        if [ -n "$hit" ]; then
+            offenders="${offenders}  ${sha} identity: $(echo "$hit" | tr '\n' ' ')
+"
+        fi
+        hit=$(scan_trailers "$sha")
+        if [ -n "$hit" ]; then
+            offenders="${offenders}  ${sha} trailer: $(echo "$hit" | tr '\n' ' ')
+"
+        fi
+    done
+done
+
+if [ -n "$offenders" ]; then
+    cat >&2 <<MSG
+pre-push: refusing to push -- agent attribution found in these commits:
+
+$offenders
+GitHub builds the contributor list from author/committer identity and from
+Co-Authored-By trailers, so pushing these would credit a non-human identity
+on the repository page. Removing it afterwards costs a history rewrite and a
+force-push.
+
+Fix the commits, then push again:
+  git rebase -i <base>      # reword the offending messages
+  git commit --amend        # if it is only the tip commit
+
+Then confirm with:
+  pytest tests/test_git_attribution.py -q
+MSG
+    exit 1
+fi
+
+exit 0

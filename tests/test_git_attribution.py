@@ -28,17 +28,27 @@ import pytest
 # case-insensitively.
 BANNED_ATTRIBUTION_SUBSTRINGS = ["claude", "anthropic"]
 
-# Message bodies get line-anchored trailer patterns instead of a substring
-# scan, because GitHub attributes from trailer lines, not from prose. A commit
-# that *describes* this policy -- the one that added the hook does exactly
-# that -- must stay legal, or the guard punishes documenting itself.
+# The trailer token is banned ANYWHERE in a message, not only at line start.
 #
-# These mirror the patterns in .githooks/commit-msg; change them together.
+# These were line-anchored, on the reasoning that GitHub attributes from
+# trailer lines and so a commit that *describes* the policy should stay legal.
+# That reasoning is why this file exists in its current form: the commit that
+# introduced .githooks/commit-msg quoted the token inside its own prose, the
+# anchored patterns passed it, and the literal string went to GitHub in pushed
+# history. Anchoring measured the parser instead of the risk.
+#
+# Write "co-author trailer" when discussing it -- this comment does. The cost
+# is losing the ability to quote the token verbatim in a commit message, which
+# is nothing next to re-auditing a contributor list.
+#
+# These mirror .githooks/pre-push; change them together. .githooks/commit-msg
+# stays anchored on purpose -- it edits the message rather than refusing it,
+# and an unanchored match there would mangle prose instead of blocking it.
 BANNED_TRAILER_PATTERNS = [
-    re.compile(r"^Co-authored-by:.*(claude|anthropic)", re.IGNORECASE),
-    re.compile(r"^Claude-Session:\s", re.IGNORECASE),
-    re.compile(r"^.{0,4}Generated with \[Claude Code\]", re.IGNORECASE),
-    re.compile(r"^\s*https://claude\.ai/code/session_", re.IGNORECASE),
+    re.compile(r"Co-authored-by:", re.IGNORECASE),
+    re.compile(r"Claude-Session:", re.IGNORECASE),
+    re.compile(r"Generated with \[Claude Code\]", re.IGNORECASE),
+    re.compile(r"https://claude\.ai/code/session_", re.IGNORECASE),
 ]
 
 # ASCII unit/record separators: chosen as delimiters because git will never
@@ -125,3 +135,117 @@ def test_commit_msg_hook_is_present_and_executable():
     import os
 
     assert os.access(hook, os.X_OK), f"{hook} is not executable (chmod +x it)"
+
+
+# --- the pre-push gate -------------------------------------------------------
+#
+# The tests above read this repo's own history, which is detection after the
+# fact. The ones below drive .githooks/pre-push in a throwaway repo with a
+# local bare remote, because the thing worth proving about a gate is that it
+# actually refuses, not that the file exists.
+
+
+def _run(args, cwd):
+    return subprocess.run(args, cwd=cwd, capture_output=True, text=True)
+
+
+def _commit(repo, message, env=None):
+    """Commit with --no-verify, i.e. with the commit-msg stripper deliberately
+    bypassed. That is the exact hole pre-push exists to cover: a message the
+    stripper never got to see."""
+    (repo / "f.txt").write_text(message)
+    _run(["git", "add", "f.txt"], cwd=repo)
+    return _run(["git", "commit", "--no-verify", "-m", message], cwd=repo)
+
+
+@pytest.fixture
+def pushable_repo(tmp_path):
+    """A scratch repo wired to a local bare remote, with this repo's real
+    .githooks installed. No network: the remote is a directory."""
+    if shutil.which("git") is None:
+        pytest.skip("git is not available")
+
+    remote = tmp_path / "remote.git"
+    repo = tmp_path / "work"
+    remote.mkdir()
+    repo.mkdir()
+    _run(["git", "init", "--bare", "-b", "main"], cwd=remote)
+    _run(["git", "init", "-b", "main"], cwd=repo)
+    for key, value in (
+        ("user.name", "Test Person"),
+        ("user.email", "test@example.com"),
+        # The hooks under test, by absolute path -- the scratch repo is not
+        # inside this project.
+        ("core.hooksPath", str(_repo_root() / ".githooks")),
+    ):
+        _run(["git", "config", key, value], cwd=repo)
+    _run(["git", "remote", "add", "origin", str(remote)], cwd=repo)
+    return repo
+
+
+def test_pre_push_hook_is_present_and_executable():
+    hook = _repo_root() / ".githooks" / "pre-push"
+    assert hook.is_file(), f"{hook} is missing"
+    import os
+
+    assert os.access(hook, os.X_OK), f"{hook} is not executable (chmod +x it)"
+
+
+def test_pre_push_allows_a_clean_commit(pushable_repo):
+    """The gate must not be so blunt that ordinary work cannot leave the
+    machine -- a guard that blocks everything gets disabled within a day."""
+    _commit(pushable_repo, "Add a thing")
+    pushed = _run(["git", "push", "origin", "main"], cwd=pushable_repo)
+    assert pushed.returncode == 0, pushed.stderr
+
+
+def test_pre_push_rejects_a_co_authored_by_trailer(pushable_repo):
+    _commit(
+        pushable_repo,
+        "Add a thing\n\nCo-Authored-By: Claude <noreply@anthropic.com>",
+    )
+    pushed = _run(["git", "push", "origin", "main"], cwd=pushable_repo)
+    assert pushed.returncode != 0, "push succeeded; the trailer reached the remote"
+    assert "refusing to push" in pushed.stderr
+    assert "trailer" in pushed.stderr
+
+
+def test_pre_push_rejects_an_agent_identity(pushable_repo):
+    """Identity is the axis commit-msg cannot touch: it edits the message and
+    has no say over author/committer. GitHub credits from identity first."""
+    _run(["git", "config", "user.name", "Claude"], cwd=pushable_repo)
+    _run(["git", "config", "user.email", "noreply@anthropic.com"], cwd=pushable_repo)
+    _commit(pushable_repo, "Add a thing")
+    pushed = _run(["git", "push", "origin", "main"], cwd=pushable_repo)
+    assert pushed.returncode != 0, "push succeeded; the identity reached the remote"
+    assert "identity" in pushed.stderr
+
+
+def test_pre_push_rejects_the_token_even_in_prose(pushable_repo):
+    """The case that cost a repository.
+
+    The commit introducing .githooks/commit-msg quoted the trailer token inside
+    a sentence explaining what the hook strips. Every anchored check passed it,
+    so the literal string reached GitHub in pushed history. Prose is no longer
+    an exemption."""
+    _commit(
+        pushable_repo,
+        'Explain the guard\n\nAgent sessions append "Co-Authored-By: Someone"\n'
+        "to every commit, so the hook strips it.",
+    )
+    pushed = _run(["git", "push", "origin", "main"], cwd=pushable_repo)
+    assert pushed.returncode != 0, "prose containing the token reached the remote"
+    assert "refusing to push" in pushed.stderr
+
+
+def test_pre_push_allows_the_approved_phrasing(pushable_repo):
+    """The rule has to leave a way to write about itself, or it gets disabled.
+    Saying "co-author trailer" instead of the literal token is that way, and it
+    is what the hooks and this module now do throughout."""
+    _commit(
+        pushable_repo,
+        "Explain the guard\n\nGitHub reads an agent co-author trailer and "
+        "credits the named\nidentity, so the hook strips it.",
+    )
+    pushed = _run(["git", "push", "origin", "main"], cwd=pushable_repo)
+    assert pushed.returncode == 0, pushed.stderr

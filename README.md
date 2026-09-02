@@ -124,7 +124,8 @@ git clone https://github.com/gairolarnav/Return-Risk-Scorer.git
 cd Return-Risk-Scorer
 
 # Hook path is local config, so it does not survive a clone — set it once here.
-# .githooks/commit-msg strips agent attribution trailers; see Tests.
+# commit-msg strips agent attribution trailers, pre-push refuses any that
+# survive. Without this line neither runs. See Tests.
 git config core.hooksPath .githooks
 
 python3.11 -m venv venv && source venv/bin/activate
@@ -178,7 +179,7 @@ stack trace. See [`examples/README.md`](examples/README.md).
 ## Tests
 
 ```bash
-pytest -q                             # 110 tests
+pytest -q                             # 116 tests
 ruff check src/ scripts/ tests/
 ```
 
@@ -279,11 +280,21 @@ two open items are listed as open rather than quietly dropped.
 - [x] Clean-clone into a fresh venv, Quickstart run verbatim — fully
       reproducible; every regenerated number matched, only artifact
       timestamps differed
-- [x] `pytest -q` green (110 tests), `ruff check src/ scripts/ tests/` clean
+- [x] `pytest -q` green (116 tests), `ruff check src/ scripts/ tests/` clean
 - [x] MIT licence
-- [x] Commit attribution guard — `.githooks/commit-msg` strips agent
-      `Co-Authored-By` / `Claude-Session` trailers, with
-      `tests/test_git_attribution.py` enforcing it over the whole history in CI
+- [x] Commit attribution guard, in three layers, because GitHub builds the
+      contributor list from commit identity and `Co-Authored-By` trailers and
+      removing an entry afterwards costs a history rewrite:
+      `.githooks/commit-msg` strips agent trailers as a commit is written;
+      `.githooks/pre-push` refuses the push outright if any outgoing commit
+      still names an agent as author, committer or co-author — the last gate
+      before GitHub sees anything, and the only one that covers `--no-verify`
+      and the identity fields a message stripper cannot touch;
+      `tests/test_git_attribution.py` enforces both over the whole history in
+      CI, and drives the pre-push hook against a scratch remote to prove it
+      actually refuses. Activate the hooks with
+      `git config core.hooksPath .githooks` — local config, so re-run it after
+      a fresh clone
 - [ ] **Open:** 5-minute pitch *video*. `docs/PITCH.md` is the script;
       nothing has been recorded.
 
