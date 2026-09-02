@@ -178,7 +178,7 @@ stack trace. See [`examples/README.md`](examples/README.md).
 ## Tests
 
 ```bash
-pytest -q                             # 108 tests
+pytest -q                             # 110 tests
 ruff check src/ scripts/ tests/
 ```
 
@@ -279,7 +279,7 @@ two open items are listed as open rather than quietly dropped.
 - [x] Clean-clone into a fresh venv, Quickstart run verbatim — fully
       reproducible; every regenerated number matched, only artifact
       timestamps differed
-- [x] `pytest -q` green (108 tests), `ruff check src/ scripts/ tests/` clean
+- [x] `pytest -q` green (110 tests), `ruff check src/ scripts/ tests/` clean
 - [x] MIT licence
 - [x] Commit attribution guard — `.githooks/commit-msg` strips agent
       `Co-Authored-By` / `Claude-Session` trailers, with

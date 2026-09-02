@@ -178,16 +178,42 @@ def _note_if_postures_are_inert(track: str) -> None:
     )
 
 
+def _score_or_exit(scorer, *args, **kwargs):
+    """Run a src.infer scorer, turning its schema ValueError into a clean exit.
+
+    `prepare_frame` raises ValueError when a payload supplies none of the
+    trained features, and its message already names the track, the columns
+    received and the ones expected — it is a good error. But letting it escape
+    as a traceback makes a *caller* mistake look like a crash inside the tool,
+    which is the one impression this repo cannot afford to give a reviewer.
+    Every other bad-input path here exits with a single line; this makes the
+    schema path match.
+
+    The wrap is deliberately narrow — one call, not the body of `run` — so a
+    genuine ValueError from anywhere else still surfaces as a traceback
+    instead of being swallowed into a tidy-looking exit. The message itself
+    stays owned by src/infer.py, where tests/test_infer.py asserts on it.
+    """
+    try:
+        return scorer(*args, **kwargs)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
+
 def run(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     bundle = _load_bundle(args.track, args.run_dir)
-    _note_if_postures_are_inert(args.track)
 
     if args.csv is not None:
         records = pd.read_csv(args.csv)
-        result = score_batch(
-            records, bundle, posture=args.posture, friction_posture=args.friction
+        result = _score_or_exit(
+            score_batch,
+            records,
+            bundle,
+            posture=args.posture,
+            friction_posture=args.friction,
         )
+        _note_if_postures_are_inert(args.track)
         _warn_if_partial(result.attrs.get("missing_features", []))
         if args.out:
             result.to_csv(args.out, index=False)
@@ -197,9 +223,14 @@ def run(argv: list[str] | None = None) -> int:
         return 0
 
     record = _read_record(args)
-    result = score_record(
-        record, bundle, posture=args.posture, friction_posture=args.friction
+    result = _score_or_exit(
+        score_record,
+        record,
+        bundle,
+        posture=args.posture,
+        friction_posture=args.friction,
     )
+    _note_if_postures_are_inert(args.track)
     _warn_if_partial(result["features_missing"])
     payload = json.dumps(result, indent=2)
     if args.out:

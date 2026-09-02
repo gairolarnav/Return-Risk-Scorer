@@ -276,3 +276,32 @@ def test_full_track_warns_that_the_postures_cannot_move_anything(
         ]
     )
     assert "LEAKAGE_FINDING" in capsys.readouterr().err
+
+
+def test_record_matching_no_features_exits_cleanly_not_with_a_traceback(run_dir, capsys):
+    """A payload with the wrong schema is a *caller* error, and must read like
+    one. src/infer.py::prepare_frame already raises a ValueError naming the
+    track, the columns received and the ones expected; the CLI's job is to
+    present it as a single line, the same way every other bad-input path here
+    does, rather than letting it escape as a Python traceback that looks like
+    the tool crashed."""
+    with pytest.raises(SystemExit) as excinfo:
+        run(["--record", json.dumps({"foo": 1}), "--track", "full", "--run-dir", str(run_dir)])
+
+    message = str(excinfo.value)
+    assert "supplies none of" in message
+    assert "feature_cols" in message
+    # The posture NOTE is a caveat on a recommendation. There is no
+    # recommendation here, so it must not have been printed above the error.
+    assert "LEAKAGE_FINDING" not in capsys.readouterr().err
+
+
+def test_malformed_json_is_not_preceded_by_the_posture_note(run_dir, capsys):
+    """Ordering matters for the first thing a reviewer sees. Before this, a
+    typo'd --record on --track full printed a paragraph about cost postures
+    *above* the actual parse error, burying the only line that says what went
+    wrong."""
+    with pytest.raises(SystemExit):
+        run(["--record", "{oops}", "--track", "full", "--run-dir", str(run_dir)])
+
+    assert capsys.readouterr().err == ""
