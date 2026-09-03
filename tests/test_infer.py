@@ -388,3 +388,64 @@ def test_load_run_accepts_a_complete_bundle(tmp_path):
     loaded = load_run(tmp_path / "good_bundle")
     assert loaded["track"] == "unit-test"
     assert loaded["categories"] == {}
+
+
+# --- audit finding F5: domain rules --------------------------------------
+#
+# Exercised here rather than through the CLI because the rules key off
+# bundle["feature_cols"], and the CLI suite's synthetic bundle carries only a
+# handful of columns -- a flag it never trained on is correctly ignored, which
+# would make a CLI-level assertion pass or fail for the wrong reason.
+
+
+def test_binary_flag_outside_zero_or_one_is_nulled_and_named():
+    """A flag is 0 or 1. A 7 is not a stronger signal, it is a broken feed, and
+    feeding it to the model as a magnitude is how nonsense earns confidence."""
+    bundle = _bundle(_StubClassifier([0.25] * 4), ["multiple_accounts_flag"])
+    frame = prepare_record({"multiple_accounts_flag": 7}, bundle)
+
+    assert frame["multiple_accounts_flag"].isna().all()
+    assert frame.attrs["out_of_range_features"] == ["multiple_accounts_flag"]
+
+
+def test_negative_money_is_nulled_and_named():
+    """F5. Every numeric column in the training data has min >= 0, so a
+    negative can only come from a caller."""
+    bundle = _bundle(_StubClassifier([0.25] * 4), ["refund_amount_requested_usd"])
+    frame = prepare_record({"refund_amount_requested_usd": -9999.0}, bundle)
+
+    assert frame["refund_amount_requested_usd"].isna().all()
+    assert frame.attrs["out_of_range_features"] == ["refund_amount_requested_usd"]
+
+
+def test_return_rate_above_one_hundred_is_nulled():
+    """A percentage cannot exceed 100."""
+    bundle = _bundle(_StubClassifier([0.25] * 4), ["return_rate_pct"])
+    frame = prepare_record({"return_rate_pct": 250.0}, bundle)
+    assert frame.attrs["out_of_range_features"] == ["return_rate_pct"]
+
+
+def test_in_range_values_are_left_exactly_alone():
+    """The rules must never fire on legitimate data. Boundary values included:
+    0 and 1 are legal for a flag, 0 and 100 legal for a percentage."""
+    cols = ["multiple_accounts_flag", "return_rate_pct", "refund_amount_requested_usd"]
+    bundle = _bundle(_StubClassifier([0.25] * 4), cols)
+    frame = prepare_record(
+        {"multiple_accounts_flag": 1, "return_rate_pct": 100.0, "refund_amount_requested_usd": 0.0},
+        bundle,
+    )
+
+    assert frame.attrs["out_of_range_features"] == []
+    assert frame["multiple_accounts_flag"].iloc[0] == 1
+    assert frame["return_rate_pct"].iloc[0] == 100.0
+    assert frame["refund_amount_requested_usd"].iloc[0] == 0.0
+
+
+def test_only_the_offending_cell_is_nulled_in_a_batch():
+    """One impossible row must not cost the other rows their real values."""
+    bundle = _bundle(_StubClassifier([0.25] * 4), ["refund_amount_requested_usd"])
+    records = pd.DataFrame({"refund_amount_requested_usd": [-5.0, 42.0, 17.0]})
+
+    out = score_batch(records, bundle)
+
+    assert out["n_features_out_of_range"].tolist() == [1, 0, 0]

@@ -178,6 +178,46 @@ def _warn_if_values_were_unusable(invalid: list[str]) -> None:
     )
 
 
+def _warn_if_values_are_impossible(out_of_range: list[str]) -> None:
+    """Print a stderr note when a field held a value it cannot legitimately
+    hold and was discarded.
+
+    This is the loudest of the three warnings for a reason. A negative refund
+    amount used to route straight to `hard_block` with full confidence: the most
+    punitive action this system can recommend, computed from a number that
+    cannot exist. Discarding the value is the right response, but doing it
+    quietly would just move the problem.
+    """
+    if not out_of_range:
+        return
+    shown = ", ".join(out_of_range[:8])
+    more = f" (+{len(out_of_range) - 8} more)" if len(out_of_range) > 8 else ""
+    print(
+        f"WARNING: {len(out_of_range)} field(s) held a value outside their "
+        f"possible range and were discarded: {shown}{more}",
+        file=sys.stderr,
+    )
+
+
+def _warn_if_features_degraded(degraded: list[str]) -> None:
+    """Print a stderr note for features that arrived intact and still could not
+    be computed -- an engineered ratio whose denominator was zero.
+
+    Nothing the caller sent was wrong, so this is a caveat rather than a
+    correction, but a recommendation resting on fewer features than it appears
+    to has to say so.
+    """
+    if not degraded:
+        return
+    shown = ", ".join(degraded[:8])
+    more = f" (+{len(degraded) - 8} more)" if len(degraded) > 8 else ""
+    print(
+        f"NOTE: {len(degraded)} feature(s) could not be computed from otherwise "
+        f"valid input (usually a zero denominator): {shown}{more}",
+        file=sys.stderr,
+    )
+
+
 def _note_if_postures_are_inert(track: str) -> None:
     """Say out loud, at the point of use, that the posture flags cannot move a
     decision on the `full` track.
@@ -250,6 +290,8 @@ def run(argv: list[str] | None = None) -> int:
         _note_if_postures_are_inert(args.track)
         _warn_if_partial(result.attrs.get("missing_features", []))
         _warn_if_values_were_unusable(result.attrs.get("invalid_features", []))
+        _warn_if_values_are_impossible(result.attrs.get("out_of_range_features", []))
+        _warn_if_features_degraded(result.attrs.get("degraded_features", []))
         if args.out:
             result.to_csv(args.out, index=False)
             print(f"Scored {len(result)} records -> {args.out}", file=sys.stderr)
@@ -268,6 +310,8 @@ def run(argv: list[str] | None = None) -> int:
     _note_if_postures_are_inert(args.track)
     _warn_if_partial(result["features_missing"])
     _warn_if_values_were_unusable(result["features_invalid"])
+    _warn_if_values_are_impossible(result["features_out_of_range"])
+    _warn_if_features_degraded(result["features_degraded"])
     payload = json.dumps(result, indent=2)
     if args.out:
         Path(args.out).write_text(payload + "\n")

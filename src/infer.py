@@ -93,7 +93,42 @@ def load_run(run_path: str | Path) -> dict:
     return bundle
 
 
-def _coerce_numeric_columns(records: pd.DataFrame, bundle: dict) -> tuple[pd.DataFrame, list[str]]:
+# Values a field cannot legitimately hold. Checked at inference only.
+#
+# The bounds are read off the training data rather than invented: every numeric
+# column in data/processed/train.parquet has min >= 0 (account_age_days 1,
+# avg_order_value_usd 15.01, total_orders_lifetime 1, days_to_return 1), and
+# return_rate_pct is a percentage. So none of these can fire on a record drawn
+# from the real distribution -- they exist for what a caller sends, not for what
+# the dataset contains.
+#
+# Deliberately NOT here: cross-field invariants, of which the obvious one is
+# total_returns_lifetime <= total_orders_lifetime. It is real and it is
+# violable, but a two-column rule has no unambiguous answer to "which of the two
+# do I null", and guessing would substitute a worse lie for the one this is
+# fixing. Left out knowingly rather than overlooked.
+BINARY_FLAGS = (
+    "multiple_accounts_flag",
+    "tracking_number_valid",
+    "photo_evidence_provided",
+    "item_returned_opened",
+    "return_packaging_intact",
+    "address_change_before_delivery",
+    "refund_to_different_account",
+    "review_left_after_return",
+    "discount_used",
+    "is_high_value_item",
+)
+
+# column -> (inclusive lower bound, inclusive upper bound or None)
+DOMAIN_RULES = {"return_rate_pct": (0.0, 100.0)}
+DOMAIN_RULES.update({flag: (0.0, 1.0) for flag in BINARY_FLAGS})
+DEFAULT_NUMERIC_BOUNDS = (0.0, None)
+
+
+def _coerce_numeric_columns(
+    records: pd.DataFrame, bundle: dict
+) -> tuple[pd.DataFrame, list[str], list[str]]:
     """Force object-dtype columns that the model treats as numeric into numbers,
     reporting the ones that held something unconvertible.
 
@@ -116,20 +151,40 @@ def _coerce_numeric_columns(records: pd.DataFrame, bundle: dict) -> tuple[pd.Dat
         for col in bundle["feature_cols"]
         if col not in bundle.get("categories", {}) and col in records.columns
     ]
-    invalid = []
+    invalid: list[str] = []
+    out_of_range: list[str] = []
     coerced = records
-    for col in numeric_cols:
-        if coerced[col].dtype != object:
-            continue
-        converted = pd.to_numeric(coerced[col], errors="coerce")
-        # Only report a column whose values were actually lost. An object column
-        # of clean numeric strings converts silently and is not a caller error.
-        if converted.isna().sum() > coerced[col].isna().sum():
-            invalid.append(col)
+
+    def _writable():
+        nonlocal coerced
         if coerced is records:
             coerced = records.copy()
-        coerced[col] = converted
-    return coerced, invalid
+        return coerced
+
+    for col in numeric_cols:
+        if coerced[col].dtype == object:
+            converted = pd.to_numeric(coerced[col], errors="coerce")
+            # Only report a column whose values were actually lost. An object
+            # column of clean numeric strings converts silently and is not a
+            # caller error.
+            if converted.isna().sum() > coerced[col].isna().sum():
+                invalid.append(col)
+            _writable()[col] = converted
+
+        low, high = DOMAIN_RULES.get(col, DEFAULT_NUMERIC_BOUNDS)
+        values = coerced[col]
+        violates = values.notna() & (values < low)
+        if high is not None:
+            violates |= values.notna() & (values > high)
+        if violates.any():
+            out_of_range.append(col)
+            # Null the offending cells only. A batch where one row carries a
+            # negative refund keeps scoring the other rows on real values --
+            # and, more to the point, the impossible number stops contributing
+            # to a recommendation instead of driving one.
+            _writable().loc[violates, col] = np.nan
+
+    return coerced, invalid, out_of_range
 
 
 def prepare_frame(records: pd.DataFrame, bundle: dict) -> pd.DataFrame:
@@ -155,7 +210,7 @@ def prepare_frame(records: pd.DataFrame, bundle: dict) -> pd.DataFrame:
     which is a caller error (wrong schema, empty payload) rather than a partial
     record worth scoring.
     """
-    records, invalid = _coerce_numeric_columns(records, bundle)
+    records, invalid, out_of_range = _coerce_numeric_columns(records, bundle)
     frame = add_transaction_level_features(records)
 
     feature_cols = bundle["feature_cols"]
@@ -184,8 +239,33 @@ def prepare_frame(records: pd.DataFrame, bundle: dict) -> pd.DataFrame:
         if col in frame.columns:
             frame[col] = pd.Categorical(frame[col], categories=levels)
 
+    # Derive what the model actually could not see, rather than trusting the
+    # bookkeeping above to have caught every cause.
+    #
+    # `missing`, `invalid` and `out_of_range` each explain some NaNs. Anything
+    # left NaN after those is a feature that arrived present, parseable and in
+    # range and still could not be computed -- in practice the engineered ratios
+    # whose denominator was zero (src/features.py nulls those denominators, so
+    # avg_order_value_usd=0 yields refund_to_avg_order_ratio=NaN). Reporting
+    # only the named causes let a record be scored on three silently dropped
+    # features while claiming `features_missing: []`.
+    #
+    # Subtracting the explained sets from the observed NaNs means a cause nobody
+    # anticipated still surfaces here instead of disappearing.
+    nan_mask = frame.isna()
+    explained = set(missing) | set(invalid) | set(out_of_range)
+    degraded = [
+        col for col in frame.columns if col not in explained and bool(nan_mask[col].any())
+    ]
+
     frame.attrs["missing_features"] = missing
     frame.attrs["invalid_features"] = invalid
+    frame.attrs["out_of_range_features"] = out_of_range
+    frame.attrs["degraded_features"] = degraded
+    # Per row, not per frame: in a batch, row 0 carrying a bad cell says nothing
+    # about row 1, and a count that pretends otherwise is the same class of
+    # dishonesty this block exists to remove.
+    frame.attrs["n_features_not_seen"] = nan_mask.sum(axis=1).tolist()
     return frame
 
 
@@ -295,6 +375,16 @@ def score_record(
         # to NaN keeps the record scorable, and naming it here keeps that
         # substitution from being invisible.
         "features_invalid": list(frame.attrs.get("invalid_features", [])),
+        # Present and parseable, but impossible -- a negative refund, a flag
+        # that is neither 0 nor 1. Nulled rather than allowed to drive a
+        # recommendation; see DOMAIN_RULES.
+        "features_out_of_range": list(frame.attrs.get("out_of_range_features", [])),
+        # Present, valid, in range, and still not computable -- the zero
+        # denominator case.
+        "features_degraded": list(frame.attrs.get("degraded_features", [])),
+        # The number that cannot be gamed by categorising causes: how many of
+        # the trained features the model saw as missing for this row.
+        "n_features_not_seen": int(frame.attrs.get("n_features_not_seen", [0])[0]),
     }
 
 
@@ -326,12 +416,30 @@ def score_batch(
     # never saw the console output can still see the scores were partial.
     missing = list(frame.attrs.get("missing_features", []))
     invalid = list(frame.attrs.get("invalid_features", []))
+    out_of_range = list(frame.attrs.get("out_of_range_features", []))
+    degraded = list(frame.attrs.get("degraded_features", []))
+
+    # A missing column is missing for the whole batch, so this one stays a
+    # single number per run.
     routed["n_features_missing"] = len(missing)
-    routed["n_features_invalid"] = len(invalid)
+    # These are per row. A frame-level count repeated on every row would report
+    # row 1 as damaged because row 0 was.
+    nan_mask = frame.isna().reset_index(drop=True)
+    for name, cols in (
+        ("n_features_invalid", invalid),
+        ("n_features_out_of_range", out_of_range),
+        ("n_features_degraded", degraded),
+    ):
+        routed[name] = (
+            nan_mask[cols].sum(axis=1).to_numpy() if cols else 0
+        )
+    routed["n_features_not_seen"] = nan_mask.sum(axis=1).to_numpy()
 
     out = pd.concat([records.reset_index(drop=True), routed.reset_index(drop=True)], axis=1)
     out.attrs["missing_features"] = missing
     out.attrs["invalid_features"] = invalid
+    out.attrs["out_of_range_features"] = out_of_range
+    out.attrs["degraded_features"] = degraded
     return out
 
 

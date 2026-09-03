@@ -372,7 +372,10 @@ def test_batch_counts_unusable_values_per_row(run_dir, tmp_path):
     assert code == 0
     scored = pd.read_csv(out_path)
     assert len(scored) == 3, "one bad cell must not drop rows"
-    assert (scored["n_features_invalid"] == 1).all()
+    # Per row, not per frame. This asserted `.all() == 1` when the count was a
+    # frame-level constant repeated onto every row -- which reported rows 1 and
+    # 2 as damaged because row 0 was, the same class of dishonesty as F6.
+    assert scored["n_features_invalid"].tolist() == [1, 0, 0]
 
 
 def test_missing_csv_path_exits_cleanly(run_dir, tmp_path):
@@ -399,3 +402,89 @@ def test_empty_csv_exits_cleanly(run_dir, tmp_path):
     with pytest.raises(SystemExit) as excinfo:
         run(["--csv", str(empty), "--run-dir", str(run_dir)])
     assert "empty" in str(excinfo.value).lower()
+
+
+# --- audit findings F5, F6 ----------------------------------------------------
+
+
+def test_impossible_values_are_discarded_and_named(run_dir, sample_record, tmp_path):
+    """F5. A negative refund used to produce "Fraudulent Return" / hard_block
+    with p ~= 1: the most punitive action available, computed from a number that
+    cannot exist. Impossible input must not drive a confident recommendation."""
+    record = dict(
+        sample_record,
+        avg_order_value_usd=-500.0,
+        refund_amount_requested_usd=-9999.0,
+        account_age_days=-1,
+    )
+    out_path = tmp_path / "out.json"
+
+    code = run(["--record", json.dumps(record), "--run-dir", str(run_dir), "--out", str(out_path)])
+
+    assert code == 0
+    result = json.loads(out_path.read_text())
+    assert set(result["features_out_of_range"]) == {
+        "avg_order_value_usd",
+        "refund_amount_requested_usd",
+        "account_age_days",
+    }
+    assert result["recommended_action"] != "hard_block", (
+        "impossible input must not route to the harshest action"
+    )
+
+
+def test_zero_denominator_is_reported_not_silently_dropped(run_dir, sample_record, tmp_path):
+    """F6. src/features.py nulls a zero denominator, so avg_order_value_usd=0
+    yields refund_to_avg_order_ratio=NaN. The result still said
+    `features_missing: []`, claiming full data on a record scored without it."""
+    record = dict(sample_record, avg_order_value_usd=0.0, total_orders_lifetime=0)
+    out_path = tmp_path / "out.json"
+
+    run(["--record", json.dumps(record), "--run-dir", str(run_dir), "--out", str(out_path)])
+
+    result = json.loads(out_path.read_text())
+    assert "refund_to_avg_order_ratio" in result["features_degraded"]
+    assert "returns_per_order" in result["features_degraded"]
+    assert result["features_out_of_range"] == [], "0 is a legal value, not out of range"
+    assert result["n_features_not_seen"] >= len(result["features_degraded"])
+
+
+def test_clean_record_reports_nothing_unusable(run_dir, sample_record, tmp_path):
+    """The counterpart that makes the three above meaningful: on well-formed
+    input every one of these fields must stay empty. If this fails, the
+    validation is firing on real data and the published numbers are suspect."""
+    out_path = tmp_path / "out.json"
+    run(["--record", json.dumps(sample_record), "--run-dir", str(run_dir), "--out", str(out_path)])
+    result = json.loads(out_path.read_text())
+    assert result["features_out_of_range"] == []
+    assert result["features_degraded"] == []
+    assert result["features_invalid"] == []
+
+
+def test_batch_counts_are_per_row_not_frame_level(run_dir, tmp_path):
+    """F6, batch shape. Row 0 carrying an impossible value says nothing about
+    row 1, and a count that claims otherwise is the defect being fixed."""
+    batch = pd.DataFrame(
+        [
+            {
+                "avg_order_value_usd": -80.0 if i == 0 else 80.0,
+                "refund_amount_requested_usd": 20.0,
+                "total_orders_lifetime": 5,
+                "total_returns_lifetime": 1,
+                "account_age_days": 200,
+                "days_to_return": 15,
+                "product_category": "Home",
+                "return_date": "2022-05-01",
+            }
+            for i in range(3)
+        ]
+    )
+    csv_path = tmp_path / "b.csv"
+    out_path = tmp_path / "s.csv"
+    batch.to_csv(csv_path, index=False)
+
+    run(["--csv", str(csv_path), "--run-dir", str(run_dir), "--out", str(out_path)])
+
+    scored = pd.read_csv(out_path)
+    assert scored["n_features_out_of_range"].tolist() == [1, 0, 0]
+    assert scored["n_features_not_seen"].iloc[0] > scored["n_features_not_seen"].iloc[1]
