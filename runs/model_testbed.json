@@ -1,7 +1,8 @@
 {
   "run_name": "model_testbed",
-  "timestamp": "2026-08-31T09:52:15.375595+00:00",
+  "timestamp": "2026-09-03T04:56:39.891372+00:00",
   "random_state": 42,
+  "bundle_sha256": "59800d795ae4ef74ee9790384039c40493675e1e98d9b30a615a7b6d95a12310",
   "track": "testbed",
   "n_features": 27,
   "feature_cols": [

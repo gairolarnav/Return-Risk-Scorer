@@ -21,6 +21,8 @@ file before ever running the pipeline.
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -449,3 +451,68 @@ def test_only_the_offending_cell_is_nulled_in_a_batch():
     out = score_batch(records, bundle)
 
     assert out["n_features_out_of_range"].tolist() == [1, 0, 0]
+
+
+# --- audit finding F10: bundle integrity ---------------------------------
+#
+# joblib is pickle-backed, so load_run executes whatever the bundle contains.
+# The digest is checked before that happens. Scope, stated honestly: it sits in
+# the repo beside the file it covers, so it stops corruption and a drifted
+# .joblib/.json pair, not a deliberate attacker.
+
+
+def _write_bundle(tmp_path, extra_json=None):
+    """A real joblib bundle plus its JSON sidecar, the way save_run pairs them."""
+    import hashlib
+
+    import joblib
+
+    path = tmp_path / "model_unit"
+    joblib.dump(
+        {
+            "model": _StubClassifier([0.25] * 4),
+            "label_encoder": _label_encoder(),
+            "feature_cols": ["days_to_return"],
+            "categories": {},
+            "track": "unit-test",
+        },
+        path.with_suffix(".joblib"),
+    )
+    payload = {"bundle_sha256": hashlib.sha256(path.with_suffix(".joblib").read_bytes()).hexdigest()}
+    payload.update(extra_json or {})
+    path.with_suffix(".json").write_text(json.dumps(payload))
+    return path
+
+
+def test_bundle_matching_its_digest_loads(tmp_path):
+    bundle = load_run(_write_bundle(tmp_path))
+    assert bundle["track"] == "unit-test"
+
+
+def test_corrupted_bundle_is_rejected_before_unpickling(tmp_path):
+    """A truncated checkout or a bad transfer otherwise surfaces as a confusing
+    model error much further downstream."""
+    path = _write_bundle(tmp_path)
+    with open(path.with_suffix(".joblib"), "ab") as handle:
+        handle.write(b"corruption")
+
+    with pytest.raises(ValueError, match="does not match the digest"):
+        load_run(path)
+
+
+def test_sidecar_without_a_digest_is_rejected_not_waved_through(tmp_path):
+    """A silent fallback for pre-check artifacts is how the gap it closes gets
+    back in -- the same reasoning as the 'categories' key check."""
+    path = _write_bundle(tmp_path)
+    path.with_suffix(".json").write_text(json.dumps({"run_name": "old"}))
+
+    with pytest.raises(ValueError, match="bundle_sha256"):
+        load_run(path)
+
+
+# --- audit finding F8: per-record explanation ----------------------------
+
+
+def test_explanation_is_absent_unless_requested():
+    bundle = _bundle(_StubClassifier([0.1, 0.7, 0.1, 0.1]), ["days_to_return"])
+    assert "explanation" not in score_record({"days_to_return": 5}, bundle)

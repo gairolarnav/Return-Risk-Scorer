@@ -39,6 +39,8 @@ probabilities behind it, per the defense-only constraint (§7).
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 
 import joblib
@@ -73,10 +75,52 @@ INTERVENTION = {
 }
 
 
+def _verify_bundle_digest(joblib_path: Path, sidecar: Path) -> None:
+    """Check the .joblib against the digest its JSON sidecar recorded, before
+    anything unpickles it.
+
+    joblib is pickle-backed: loading a bundle runs whatever is inside it. The
+    honest description of this check is narrow -- the digest lives in the same
+    repository as the file it covers, so whoever can rewrite one can rewrite the
+    other, and it stops no deliberate attacker. What it does stop is the failure
+    that actually occurs: a truncated or corrupted artifact, and a .joblib and
+    .json that drifted apart because a track was retrained and only one of the
+    two was committed. Both otherwise surface as a confusing model error much
+    further downstream.
+
+    A sidecar with no digest is a pre-check artifact and is rejected rather than
+    waved through, for the same reason a bundle without "categories" is: a
+    silent fallback is how the bug it guards against gets back in.
+    """
+    if not sidecar.exists():
+        return  # nothing to check against; the key check below still applies
+    recorded = json.loads(sidecar.read_text()).get("bundle_sha256")
+    if recorded is None:
+        raise ValueError(
+            f"{sidecar} records no 'bundle_sha256'. It predates the integrity "
+            "check — retrain with `python -m src.model` rather than loading a "
+            "bundle whose contents cannot be confirmed."
+        )
+    digest = hashlib.sha256()
+    with open(joblib_path, "rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    actual = digest.hexdigest()
+    if actual != recorded:
+        raise ValueError(
+            f"{joblib_path} does not match the digest in {sidecar.name}: "
+            f"expected {recorded[:16]}..., got {actual[:16]}.... The bundle is "
+            "corrupt, or it and its metrics file came from different runs. "
+            "Retrain with `python -m src.model`."
+        )
+
+
 def load_run(run_path: str | Path) -> dict:
     """Load a saved run bundle. Accepts the .json or .joblib path."""
     run_path = Path(run_path)
-    bundle = joblib.load(run_path.with_suffix(".joblib"))
+    joblib_path = run_path.with_suffix(".joblib")
+    _verify_bundle_digest(joblib_path, run_path.with_suffix(".json"))
+    bundle = joblib.load(joblib_path)
     # "categories" is checked here, not just the three original keys: a bundle
     # missing it is a pre-rewrite artifact, and scoring with one reintroduces
     # the categorical-schema mismatch (a one-row inference frame defines its
@@ -338,6 +382,7 @@ def score_record(
     bundle: dict,
     posture: str = DEFAULT_POSTURE,
     friction_posture: str = DEFAULT_FRICTION_POSTURE,
+    explain: bool = False,
 ) -> dict:
     """Score one raw return record and route it to an intervention.
 
@@ -359,7 +404,7 @@ def score_record(
     proba = clf.predict_proba(frame)
     routed = _route(proba, class_names, posture, friction_posture).iloc[0]
 
-    return {
+    result = {
         "most_likely_class": routed["most_likely_class"],
         "class_probabilities": {c: float(p) for c, p in zip(class_names, proba[0])},
         "posture": posture,
@@ -386,6 +431,17 @@ def score_record(
         # the trained features the model saw as missing for this row.
         "n_features_not_seen": int(frame.attrs.get("n_features_not_seen", [0])[0]),
     }
+
+    if explain:
+        # Imported here, not at module scope: shap pulls in a slow dependency
+        # tree, and the default scoring path should not pay for a feature it is
+        # not using. src.explain owns the TreeExplainer so the per-record
+        # explanation and the per-class study in runs/shap_*.json cannot drift.
+        from src.explain import explain_row
+
+        result["explanation"] = explain_row(bundle, frame, result["most_likely_class"])
+
+    return result
 
 
 def score_batch(

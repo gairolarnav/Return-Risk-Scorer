@@ -488,3 +488,59 @@ def test_batch_counts_are_per_row_not_frame_level(run_dir, tmp_path):
     scored = pd.read_csv(out_path)
     assert scored["n_features_out_of_range"].tolist() == [1, 0, 0]
     assert scored["n_features_not_seen"].iloc[0] > scored["n_features_not_seen"].iloc[1]
+
+
+# --- audit findings F7, F8 ----------------------------------------------------
+
+
+def test_out_refuses_to_replace_an_existing_file(run_dir, sample_record, tmp_path):
+    """F7. A scored batch is evidence someone may be working from. Re-running
+    with a different --track or --friction and silently replacing it is how the
+    wrong numbers reach a report."""
+    out_path = tmp_path / "out.json"
+    out_path.write_text("previous results")
+
+    with pytest.raises(SystemExit) as excinfo:
+        run(["--record", json.dumps(sample_record), "--run-dir", str(run_dir), "--out", str(out_path)])
+
+    assert "--overwrite" in str(excinfo.value)
+    assert out_path.read_text() == "previous results", "the existing file must survive"
+
+
+def test_overwrite_flag_allows_replacing(run_dir, sample_record, tmp_path):
+    out_path = tmp_path / "out.json"
+    out_path.write_text("previous results")
+
+    code = run(
+        [
+            "--record",
+            json.dumps(sample_record),
+            "--run-dir",
+            str(run_dir),
+            "--out",
+            str(out_path),
+            "--overwrite",
+        ]
+    )
+
+    assert code == 0
+    assert json.loads(out_path.read_text())["most_likely_class"] in CLASSES
+
+
+def test_explain_is_refused_on_a_batch(run_dir, tmp_path):
+    """F8. Supported on one record only -- a batch would rebuild the SHAP
+    explainer per row. Refusing beats quietly taking minutes."""
+    csv_path = tmp_path / "b.csv"
+    pd.DataFrame([{"avg_order_value_usd": 80.0, "return_date": "2022-05-01"}]).to_csv(
+        csv_path, index=False
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        run(["--csv", str(csv_path), "--run-dir", str(run_dir), "--explain"])
+    assert "single record" in str(excinfo.value)
+
+
+def test_result_carries_no_explanation_unless_asked(run_dir, sample_record, tmp_path):
+    """The default path must not import or run shap."""
+    out_path = tmp_path / "out.json"
+    run(["--record", json.dumps(sample_record), "--run-dir", str(run_dir), "--out", str(out_path)])
+    assert "explanation" not in json.loads(out_path.read_text())

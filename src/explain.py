@@ -63,6 +63,18 @@ def compute_shap_values(track: str) -> tuple[np.ndarray, pd.DataFrame, list[str]
     frame = load_test_frame(bundle)
     class_names = list(bundle["label_encoder"].classes_)
 
+    return shap_values_for_frame(bundle, frame), frame, class_names
+
+
+def shap_values_for_frame(bundle: dict, frame: pd.DataFrame) -> np.ndarray:
+    """SHAP values for an already-prepared model frame.
+
+    Split out of `compute_shap_values` so per-record explanation at inference
+    time and the offline per-class study share one TreeExplainer call and one
+    shape check. A second copy here is exactly the divergence ARCHITECTURE.md
+    §8 warns about: two explainers that disagree would make the explanation
+    shown to a merchant differ from the one in the writeup.
+    """
     explainer = shap.TreeExplainer(bundle["model"])
     shap_values = explainer.shap_values(frame)
     if shap_values.ndim != 3:
@@ -70,7 +82,43 @@ def compute_shap_values(track: str) -> tuple[np.ndarray, pd.DataFrame, list[str]
             f"Expected shap_values shape (n_rows, n_features, n_classes), got {shap_values.shape}. "
             "The shap/lightgbm version pairing changed its output layout — update this module."
         )
-    return shap_values, frame, class_names
+    return shap_values
+
+
+def explain_row(
+    bundle: dict, frame: pd.DataFrame, class_name: str, top_n: int = TOP_N
+) -> list[dict]:
+    """The features that pushed one row toward `class_name`, most first.
+
+    Signed, not absolute: a merchant asking why a return was flagged needs to
+    know which evidence argued *for* the call and which argued against it, and
+    a magnitude-only ranking hides that. `value` is what the model actually saw
+    after feature engineering — NaN where the input was missing, unparseable or
+    out of range, which is the point at which a thin explanation becomes
+    visible as thin.
+    """
+    class_names = list(bundle["label_encoder"].classes_)
+    if class_name not in class_names:
+        raise ValueError(f"{class_name!r} is not one of {class_names}")
+    c_idx = class_names.index(class_name)
+
+    contributions = shap_values_for_frame(bundle, frame)[0, :, c_idx]
+    order = np.argsort(np.abs(contributions))[::-1][:top_n]
+    return [
+        {
+            "feature": str(frame.columns[i]),
+            "value": None if pd.isna(frame.iloc[0, i]) else _plain(frame.iloc[0, i]),
+            "shap": float(contributions[i]),
+        }
+        for i in order
+    ]
+
+
+def _plain(value):
+    """numpy/pandas scalar -> something json.dumps will accept."""
+    if hasattr(value, "item"):
+        return value.item()
+    return value
 
 
 def top_features_per_class(

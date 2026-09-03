@@ -1,7 +1,8 @@
 {
   "run_name": "model_full",
-  "timestamp": "2026-08-31T09:52:03.942768+00:00",
+  "timestamp": "2026-09-03T04:56:32.309754+00:00",
   "random_state": 42,
+  "bundle_sha256": "d52f8de781bec72d4bac6d2f2dc43e63c9a5f48034e7dc36da2f95a35415ca83",
   "track": "full",
   "n_features": 35,
   "feature_cols": [

@@ -146,7 +146,16 @@ python -m src.segment_audit     # segment FPR by order-value bucket -> runs/segm
 # score a record or a batch CSV (replaces the cut Streamlit demo — see Status)
 python -m scripts.score --record-file examples/record.json --track full
 python -m scripts.score --csv examples/sample_returns.csv --out scored.csv
+
+# why this record got that call — signed SHAP contributions, single records only
+python -m scripts.score --record-file examples/record.json --track testbed --explain
 ```
+
+`--out` refuses to replace an existing file unless you pass `--overwrite`.
+For an exact rebuild of the environment these numbers came from, install
+[`requirements.lock`](requirements.lock) instead of `requirements.txt`: it pins
+the full transitive tree, resolved in a clean venv rather than frozen from a
+working one.
 
 Dataset: [E-Commerce Return Abuse Detection](https://www.kaggle.com/datasets/sarveshchhetri/e-commerce-return-abuse-detection-dataset)
 (Kaggle, synthetic, 60,000 × 35).
@@ -179,7 +188,7 @@ stack trace. See [`examples/README.md`](examples/README.md).
 ## Tests
 
 ```bash
-pytest -q                             # 116 tests
+pytest -q                             # 139 tests
 ruff check src/ scripts/ tests/
 ```
 
@@ -280,7 +289,7 @@ two open items are listed as open rather than quietly dropped.
 - [x] Clean-clone into a fresh venv, Quickstart run verbatim — fully
       reproducible; every regenerated number matched, only artifact
       timestamps differed
-- [x] `pytest -q` green (116 tests), `ruff check src/ scripts/ tests/` clean
+- [x] `pytest -q` green (139 tests), `ruff check src/ scripts/ tests/` clean
 - [x] MIT licence
 - [x] Commit attribution guard, in three layers, because GitHub builds the
       contributor list from commit identity and `Co-Authored-By` trailers and

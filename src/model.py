@@ -30,6 +30,7 @@ Run as:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -246,6 +247,15 @@ def rule_baseline_metrics(raw_path: Path = RAW_PATH) -> dict:
     }
 
 
+def _sha256(path: Path) -> str:
+    """SHA-256 of a file, read in chunks so a large bundle is not slurped."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def save_run(result: dict, run_name: str) -> Path:
     """One joblib artifact + one JSON metrics file per run (§8.1) — no
     experiment-tracking service at this scale."""
@@ -267,6 +277,17 @@ def save_run(result: dict, run_name: str) -> Path:
         "run_name": run_name,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "random_state": RANDOM_STATE,
+        # Digest of the .joblib this JSON describes. joblib is pickle-backed, so
+        # loading one executes whatever it contains; src.infer.load_run checks
+        # this before unpickling.
+        #
+        # What it does and does not buy, stated plainly: the digest sits in the
+        # repository beside the file it covers, so anyone able to replace the
+        # bundle can update the digest too. It is not a defence against a
+        # deliberate attacker. It does catch the cases that actually happen --
+        # a truncated checkout, a corrupted transfer, and a pair that drifted
+        # because one track was retrained and only the .joblib was committed.
+        "bundle_sha256": _sha256(RUNS_DIR / f"{run_name}.joblib"),
         **result["metrics"],
     }
     out = RUNS_DIR / f"{run_name}.json"

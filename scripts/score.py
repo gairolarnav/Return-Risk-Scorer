@@ -102,7 +102,27 @@ def build_parser() -> argparse.ArgumentParser:
         "--out",
         metavar="PATH",
         help="Where to write output. Single record: JSON. Batch: CSV. "
-        "Omit to print to stdout.",
+        "Omit to print to stdout. Refuses to overwrite an existing file unless "
+        "--overwrite is given.",
+    )
+    parser.add_argument(
+        "--explain",
+        action="store_true",
+        help="Add per-feature SHAP contributions for the predicted class to a "
+        "single-record result: which evidence argued for the call and which "
+        "against, signed. Off by default because it loads shap, which is slow. "
+        "Single records only — a batch would recompute the explainer per row. "
+        "Worth reading on --track full with the leakage finding in mind: the "
+        "contributions show the model resting on the features the generator "
+        "made near-separable (docs/LEAKAGE_FINDING.md).",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Allow --out to replace an existing file. Off by default: a scored "
+        "batch is evidence someone may be working from, and silently replacing "
+        "it on a re-run with different --track or --friction is how the wrong "
+        "numbers end up in a report.",
     )
     return parser
 
@@ -117,6 +137,21 @@ def _load_bundle(track: str, run_dir: str) -> dict:
             f"Run `python -m src.model {track}` (or `python -m src.model` for both "
             "tracks) first."
         ) from exc
+
+
+def _refuse_to_clobber(out: str | None, overwrite: bool) -> None:
+    """Stop --out replacing a file that is already there.
+
+    Checked before scoring rather than after, so a rejected run costs nothing
+    and leaves the existing file untouched.
+    """
+    if not out or overwrite:
+        return
+    if Path(out).exists():
+        raise SystemExit(
+            f"{out} already exists. Pass --overwrite to replace it, or choose "
+            "another path."
+        )
 
 
 def _read_record(args: argparse.Namespace) -> dict:
@@ -269,8 +304,16 @@ def _score_or_exit(scorer, *args, **kwargs):
 def run(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     bundle = _load_bundle(args.track, args.run_dir)
+    _refuse_to_clobber(args.out, args.overwrite)
 
     if args.csv is not None:
+        if args.explain:
+            raise SystemExit(
+                "--explain works on a single record, not --csv: a batch would "
+                "rebuild the SHAP explainer for every row. Use --record or "
+                "--record-file, or run `python -m src.explain` for the "
+                "per-class study across the whole test set."
+            )
         try:
             records = pd.read_csv(args.csv)
         except FileNotFoundError as exc:
@@ -306,6 +349,7 @@ def run(argv: list[str] | None = None) -> int:
         bundle,
         posture=args.posture,
         friction_posture=args.friction,
+        explain=args.explain,
     )
     _note_if_postures_are_inert(args.track)
     _warn_if_partial(result["features_missing"])
