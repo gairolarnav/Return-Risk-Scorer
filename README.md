@@ -265,7 +265,6 @@ docs/              ARCHITECTURE.md   full design + correction log
                     LEAKAGE_FINDING.md  the headline result — read this first
                     DATA_NOTES.md     Day 1 gate findings (generated)
                     EVALUATION.md     per-class metrics, both cost axes, caveats
-                    PITCH.md          5-minute pitch script
 runs/              metrics JSON, charts, cost-sweep CSVs, model_full.joblib
 ```
 
@@ -312,7 +311,6 @@ two open items are listed as open rather than quietly dropped.
       and holding no logic of their own
 - [x] `docs/ARCHITECTURE.md` reconciled — every correction folded into its §11
       log, §10 checklist honest
-- [x] 5-minute pitch script (`docs/PITCH.md`)
 - [x] Clean-clone into a fresh venv, Quickstart run verbatim — fully
       reproducible; every regenerated number matched, only artifact
       timestamps differed
@@ -331,8 +329,9 @@ two open items are listed as open rather than quietly dropped.
       actually refuses. Activate the hooks with
       `git config core.hooksPath .githooks` — local config, so re-run it after
       a fresh clone
-- [ ] **Open:** 5-minute pitch *video*. `docs/PITCH.md` is the script;
-      nothing has been recorded.
+- [ ] **Open:** 5-minute pitch. The written script was moved out of the
+      repository and nothing has been recorded, so neither the script nor the
+      video is a deliverable you will find here.
 
 **Stated limitations of the build itself** (as opposed to the dataset):
 hyperparameters are fixed rather than tuned and there is no validation split —

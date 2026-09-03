@@ -505,8 +505,7 @@ return-risk-scorer/
 │   ├── ARCHITECTURE.md          # this file
 │   ├── LEAKAGE_FINDING.md       # the headline result — read this second, after the README
 │   ├── DATA_NOTES.md            # Day 1 gate findings + split-strategy decision
-│   ├── EVALUATION.md            # per-class metrics, both cost axes, caveats
-│   └── PITCH.md                 # 5-minute pitch script
+│   └── EVALUATION.md            # per-class metrics, both cost axes, caveats
 ├── tests/                       # see §9.3 — all 15 files, none omitted
 │   ├── test_leakage.py
 │   ├── test_features.py
@@ -845,8 +844,9 @@ dropped.
       for signed per-feature SHAP on the predicted class). The Streamlit demo was cut
       from scope; see §8. The deliverable is the real decision path, not a UI shell.
 - [x] Every scored result reports what the model could not see, split by cause (§8.3)
-- [ ] 5-minute pitch video — **open.** `docs/PITCH.md` is the written script;
-      nothing has been recorded.
+- [ ] 5-minute pitch — **open.** The written script was moved out of the
+      repository and no recording exists, so neither is delivered here. Logged
+      in §11 rather than quietly unchecked.
 - [x] This architecture document, with its correction log intact
 
 **Repo hygiene**
@@ -886,6 +886,7 @@ see the shape of what changed at a glance. Entries are never deleted.
 | Day 7 | §8 | No model binaries committed; `runs/` carries JSON and charts only | **`runs/model_full.joblib` committed**, plus `examples/` | The stated goal of committing `runs/` was that a reviewer without the dataset can still see the work. That reasoning covers the numbers but stopped short of the demo: with every bundle gitignored, `scripts/score.py` could not produce one prediction from a clean clone, and the only `--record` example in the docs was a `{"...": "..."}` placeholder that raises. 3.2M buys a demo that runs on `pip install` |
 | Day 7 | §8.2 | Pipeline stages fail with whatever exception the missing file raises | `require_artifacts` at each entry point: lists what is missing, names the command that builds it, exits 1 | Seven of eight `python -m src.*` entry points ended in a bare `FileNotFoundError` from library depth on a clean clone. `src/evaluate.py`'s was worse than absent — it guarded `model_{track}.json`, which *is* committed, then died on the gitignored `.npy`, so its friendly message was unreachable code |
 | Day 7 | §8, §6.2 | The scoring CLI exposes the cost policy through `--posture` alone | **`--friction` added**, and `--posture`'s help text corrected to state that it is the near-inert axis | The Day 4 correction moved the centerpiece to the friction axis, but the serving path was never updated to match: `src/infer.py` called `build_cost_matrix` without a `friction_cost`, silently taking the default, so the one axis §6.2 calls the deliverable could not be moved at the point of use. Measured before the fix: all three `--posture` values produce byte-identical actions for 12,000 of 12,000 rows on `full`, and differ on 29 at the extremes on `testbed`. `--friction` moves 764–1,219. Its `balanced (1:2)` default is the previously hardcoded value, so no committed artifact changed |
+| Post-build | §8, §10 | `docs/PITCH.md` ships in the repo as the written 5-minute script, checked off as delivered | **Removed at the author's request.** The file was copied out to a working folder and deleted from the repository; §8's tree, §10's checklist, the README's `docs/` listing and Status, and two comments in `tests/test_baseline_rule.py` were all updated in the same commit | A deliverable that leaves the repository has to leave the claims with it. Five documents named a file a reviewer would no longer find, which is the exact failure §10 asserts against — and the pitch line is now stated as fully open rather than half-checked |
 
 ### 11.1 Serving-path audit — after Day 7
 

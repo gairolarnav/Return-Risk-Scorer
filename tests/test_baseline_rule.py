@@ -2,9 +2,9 @@
 Tests for the four-rule, zero-training baseline in src/model.py.
 
 This baseline produces the single most important number in the project — the
-0.9425 accuracy / 0.9188 macro-F1 that the README, docs/EVALUATION.md,
-docs/PITCH.md and docs/LEAKAGE_FINDING.md all lead with as evidence that the
-dataset is degenerate. Until these tests existed, nothing guarded it: an edited
+0.9425 accuracy / 0.9188 macro-F1 that the README, docs/EVALUATION.md and
+docs/LEAKAGE_FINDING.md all lead with as evidence that the dataset is
+degenerate. Until these tests existed, nothing guarded it: an edited
 threshold in `apply_hand_written_rule` left the suite green while silently
 falsifying every document in the repo.
 
@@ -24,8 +24,8 @@ from src.model import apply_hand_written_rule, rule_baseline_metrics
 
 # The four thresholds, exactly as docs/LEAKAGE_FINDING.md reports them. If a
 # change to the rule is deliberate, these move *and* so does every quoted
-# number in README.md, docs/EVALUATION.md, docs/PITCH.md and
-# docs/LEAKAGE_FINDING.md — that is the point of restating them here.
+# number in README.md, docs/EVALUATION.md and docs/LEAKAGE_FINDING.md —
+# that is the point of restating them here.
 WISHLIST_HRS_CUT = 5.0
 DAYS_TO_RETURN_CUT = 25
 RETURN_RATE_PCT_CUT = 15
