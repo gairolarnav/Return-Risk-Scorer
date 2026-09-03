@@ -93,6 +93,45 @@ def load_run(run_path: str | Path) -> dict:
     return bundle
 
 
+def _coerce_numeric_columns(records: pd.DataFrame, bundle: dict) -> tuple[pd.DataFrame, list[str]]:
+    """Force object-dtype columns that the model treats as numeric into numbers,
+    reporting the ones that held something unconvertible.
+
+    Why this runs before `add_transaction_level_features`: the engineered
+    features divide raw columns by each other, so a string reaching that point
+    fails as `TypeError: unsupported operand type(s) for /: 'str' and 'str'`
+    inside pandas, with no indication of which column or row was at fault. By
+    then the useful context is gone.
+
+    Only `object`-dtype columns are touched. A column that already parsed as
+    numeric is left exactly as it was, so a well-formed record takes an
+    unchanged path through scoring -- this must not perturb any published
+    number.
+
+    Categorical columns are skipped: their values are *supposed* to be strings,
+    and `prepare_frame` pins them to the training levels further down.
+    """
+    numeric_cols = [
+        col
+        for col in bundle["feature_cols"]
+        if col not in bundle.get("categories", {}) and col in records.columns
+    ]
+    invalid = []
+    coerced = records
+    for col in numeric_cols:
+        if coerced[col].dtype != object:
+            continue
+        converted = pd.to_numeric(coerced[col], errors="coerce")
+        # Only report a column whose values were actually lost. An object column
+        # of clean numeric strings converts silently and is not a caller error.
+        if converted.isna().sum() > coerced[col].isna().sum():
+            invalid.append(col)
+        if coerced is records:
+            coerced = records.copy()
+        coerced[col] = converted
+    return coerced, invalid
+
+
 def prepare_frame(records: pd.DataFrame, bundle: dict) -> pd.DataFrame:
     """Build a model frame matching the training schema exactly, for one row
     or many. `prepare_record` is a one-row convenience wrapper over this —
@@ -104,10 +143,19 @@ def prepare_frame(records: pd.DataFrame, bundle: dict) -> pd.DataFrame:
     `frame.attrs["missing_features"]` and are surfaced in the scoring output, so
     a recommendation made on a partial record says so.
 
+    A value that should be numeric but is not -- "N/A", "", "unknown", the
+    string a spreadsheet export leaves behind -- is coerced to NaN rather than
+    allowed to reach feature engineering, where dividing it raised a TypeError
+    from two frames deep inside pandas. Those column names land in
+    `frame.attrs["invalid_features"]` and are surfaced the same way missing ones
+    are: NaN is what the model was trained to handle, but a caller must never
+    have to guess that a field was dropped.
+
     Raises ValueError when the record supplies *none* of the expected features,
     which is a caller error (wrong schema, empty payload) rather than a partial
     record worth scoring.
     """
+    records, invalid = _coerce_numeric_columns(records, bundle)
     frame = add_transaction_level_features(records)
 
     feature_cols = bundle["feature_cols"]
@@ -137,6 +185,7 @@ def prepare_frame(records: pd.DataFrame, bundle: dict) -> pd.DataFrame:
             frame[col] = pd.Categorical(frame[col], categories=levels)
 
     frame.attrs["missing_features"] = missing
+    frame.attrs["invalid_features"] = invalid
     return frame
 
 
@@ -242,6 +291,10 @@ def score_record(
         # Surfaced, not swallowed: a recommendation built on a partial record
         # names the features it did not have.
         "features_missing": list(frame.attrs.get("missing_features", [])),
+        # Same principle for a field that was present but unusable: coercing it
+        # to NaN keeps the record scorable, and naming it here keeps that
+        # substitution from being invisible.
+        "features_invalid": list(frame.attrs.get("invalid_features", [])),
     }
 
 
@@ -272,10 +325,13 @@ def score_batch(
     # run rather than per row — but it belongs in the CSV, where a reader who
     # never saw the console output can still see the scores were partial.
     missing = list(frame.attrs.get("missing_features", []))
+    invalid = list(frame.attrs.get("invalid_features", []))
     routed["n_features_missing"] = len(missing)
+    routed["n_features_invalid"] = len(invalid)
 
     out = pd.concat([records.reset_index(drop=True), routed.reset_index(drop=True)], axis=1)
     out.attrs["missing_features"] = missing
+    out.attrs["invalid_features"] = invalid
     return out
 
 

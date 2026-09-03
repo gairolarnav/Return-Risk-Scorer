@@ -123,7 +123,13 @@ def _read_record(args: argparse.Namespace) -> dict:
     if args.record is not None:
         raw = args.record
     else:
-        raw = Path(args.record_file).read_text()
+        try:
+            raw = Path(args.record_file).read_text()
+        except FileNotFoundError as exc:
+            raise SystemExit(
+                f"No such file: {args.record_file}. --record-file takes a path to a "
+                "JSON file; pass the JSON itself with --record."
+            ) from exc
     try:
         record = json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -148,6 +154,26 @@ def _warn_if_partial(missing: list[str]) -> None:
     print(
         f"WARNING: {len(missing)} trained feature(s) absent from the input and "
         f"scored as missing: {shown}{more}",
+        file=sys.stderr,
+    )
+
+
+def _warn_if_values_were_unusable(invalid: list[str]) -> None:
+    """Print a stderr note when a field was present but could not be read as a
+    number and was scored as missing instead.
+
+    The record still scores -- a spreadsheet export full of "N/A" should not
+    take a whole batch down -- but substituting NaN changes what the model saw,
+    so it is stated rather than absorbed. Stderr, like the partial-record
+    warning above, so piped JSON/CSV stays clean.
+    """
+    if not invalid:
+        return
+    shown = ", ".join(invalid[:8])
+    more = f" (+{len(invalid) - 8} more)" if len(invalid) > 8 else ""
+    print(
+        f"WARNING: {len(invalid)} field(s) held a value that is not a number and "
+        f"were scored as missing: {shown}{more}",
         file=sys.stderr,
     )
 
@@ -196,7 +222,7 @@ def _score_or_exit(scorer, *args, **kwargs):
     """
     try:
         return scorer(*args, **kwargs)
-    except ValueError as exc:
+    except (ValueError, TypeError) as exc:
         raise SystemExit(str(exc)) from exc
 
 
@@ -205,7 +231,15 @@ def run(argv: list[str] | None = None) -> int:
     bundle = _load_bundle(args.track, args.run_dir)
 
     if args.csv is not None:
-        records = pd.read_csv(args.csv)
+        try:
+            records = pd.read_csv(args.csv)
+        except FileNotFoundError as exc:
+            raise SystemExit(f"No such file: {args.csv}") from exc
+        except pd.errors.EmptyDataError as exc:
+            raise SystemExit(
+                f"{args.csv} is empty -- no header row to read. A batch file needs "
+                "a header naming the input columns; see examples/sample_returns.csv."
+            ) from exc
         result = _score_or_exit(
             score_batch,
             records,
@@ -215,6 +249,7 @@ def run(argv: list[str] | None = None) -> int:
         )
         _note_if_postures_are_inert(args.track)
         _warn_if_partial(result.attrs.get("missing_features", []))
+        _warn_if_values_were_unusable(result.attrs.get("invalid_features", []))
         if args.out:
             result.to_csv(args.out, index=False)
             print(f"Scored {len(result)} records -> {args.out}", file=sys.stderr)
@@ -232,6 +267,7 @@ def run(argv: list[str] | None = None) -> int:
     )
     _note_if_postures_are_inert(args.track)
     _warn_if_partial(result["features_missing"])
+    _warn_if_values_were_unusable(result["features_invalid"])
     payload = json.dumps(result, indent=2)
     if args.out:
         Path(args.out).write_text(payload + "\n")

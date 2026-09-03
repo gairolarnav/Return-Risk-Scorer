@@ -305,3 +305,97 @@ def test_malformed_json_is_not_preceded_by_the_posture_note(run_dir, capsys):
         run(["--record", "{oops}", "--track", "full", "--run-dir", str(run_dir)])
 
     assert capsys.readouterr().err == ""
+
+
+# --- audit findings F1, F2, F3 ------------------------------------------------
+#
+# All three were the same shape: an ordinary user mistake reaching a library and
+# failing there, so the traceback named pandas or LightGBM internals instead of
+# what the caller did wrong. The repo argues elsewhere that a caller error must
+# read like one; these pin that down at the boundary.
+
+
+def test_non_numeric_value_scores_and_names_the_field(run_dir, sample_record, tmp_path):
+    """F1. A currency column holding "N/A" used to raise
+    `TypeError: unsupported operand type(s) for /: 'str' and 'str'` from inside
+    pandas, because feature engineering divides those columns before anything
+    validates them. It now coerces to NaN -- one bad cell must not take a whole
+    batch down -- and says which field it lost."""
+    record = dict(sample_record, avg_order_value_usd="N/A")
+    out_path = tmp_path / "out.json"
+
+    code = run(["--record", json.dumps(record), "--run-dir", str(run_dir), "--out", str(out_path)])
+
+    assert code == 0
+    result = json.loads(out_path.read_text())
+    assert result["features_invalid"] == ["avg_order_value_usd"]
+    assert result["recommended_action"] in ACTIONS  # still a usable recommendation
+
+
+def test_clean_record_reports_no_invalid_fields(run_dir, sample_record, tmp_path):
+    """The coercion must not fire on well-formed input. If this ever fails, a
+    published number was computed on a silently altered frame."""
+    out_path = tmp_path / "out.json"
+    run(["--record", json.dumps(sample_record), "--run-dir", str(run_dir), "--out", str(out_path)])
+    assert json.loads(out_path.read_text())["features_invalid"] == []
+
+
+def test_batch_counts_unusable_values_per_row(run_dir, tmp_path):
+    """F1 through the batch path, which is where a real spreadsheet export --
+    the actual source of junk in a numeric column -- would arrive.
+
+    Note the value: "unknown", not "N/A". `pd.read_csv` already maps "N/A",
+    "NA", "null" and "" to NaN through its default `na_values`, so those never
+    reached the division. The strings that did are the ones pandas has no
+    opinion about, which is most of what a human types into a spreadsheet."""
+    batch = pd.DataFrame(
+        [
+            {
+                "avg_order_value_usd": "unknown" if i == 0 else 80.0,
+                "refund_amount_requested_usd": 20.0,
+                "total_orders_lifetime": 5,
+                "total_returns_lifetime": 1,
+                "account_age_days": 200,
+                "days_to_return": 15,
+                "product_category": "Home",
+                "return_date": "2022-05-01",
+            }
+            for i in range(3)
+        ]
+    )
+    csv_path = tmp_path / "batch.csv"
+    out_path = tmp_path / "scored.csv"
+    batch.to_csv(csv_path, index=False)
+
+    code = run(["--csv", str(csv_path), "--run-dir", str(run_dir), "--out", str(out_path)])
+
+    assert code == 0
+    scored = pd.read_csv(out_path)
+    assert len(scored) == 3, "one bad cell must not drop rows"
+    assert (scored["n_features_invalid"] == 1).all()
+
+
+def test_missing_csv_path_exits_cleanly(run_dir, tmp_path):
+    """F2."""
+    missing = tmp_path / "no_such.csv"
+    with pytest.raises(SystemExit) as excinfo:
+        run(["--csv", str(missing), "--run-dir", str(run_dir)])
+    assert str(missing) in str(excinfo.value)
+
+
+def test_missing_record_file_path_exits_cleanly(run_dir, tmp_path):
+    """F2. `_load_bundle` guarded the model path; the input paths did not, so a
+    typo -- the likeliest mistake there is -- produced a stack trace."""
+    missing = tmp_path / "no_such.json"
+    with pytest.raises(SystemExit) as excinfo:
+        run(["--record-file", str(missing), "--run-dir", str(run_dir)])
+    assert str(missing) in str(excinfo.value)
+
+
+def test_empty_csv_exits_cleanly(run_dir, tmp_path):
+    """F3. A zero-byte file raised pandas' EmptyDataError verbatim."""
+    empty = tmp_path / "empty.csv"
+    empty.write_text("")
+    with pytest.raises(SystemExit) as excinfo:
+        run(["--csv", str(empty), "--run-dir", str(run_dir)])
+    assert "empty" in str(excinfo.value).lower()
