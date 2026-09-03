@@ -468,7 +468,10 @@ evidence of compliance than a test in CI.*
 ```
 return-risk-scorer/
 ├── .github/workflows/
-│   └── ci.yml                   # ruff check + pytest on push
+│   └── ci.yml                   # ruff check + pytest on push (fetch-depth: 0, see §9.3)
+├── .githooks/                   # local config — `git config core.hooksPath .githooks`
+│   ├── commit-msg               # strips agent attribution trailers as a commit is written
+│   └── pre-push                 # refuses a push whose commits carry any, the last gate before GitHub
 ├── data/
 │   ├── raw/.gitkeep             # Kaggle CSV NOT committed — README says where to get it
 │   └── processed/               # train/test splits, engineered features (parquet)
@@ -489,6 +492,11 @@ return-risk-scorer/
 │   └── segment_audit.py         # segment-level FPR by order-value bucket
 ├── scripts/
 │   └── score.py                 # CLI: record or CSV -> class + intervention (replaces the cut demo)
+│                                #   --track --posture --friction --explain --overwrite
+├── examples/                    # 1 record + 20 rows, so the CLI runs with no dataset
+│   ├── README.md
+│   ├── record.json
+│   └── sample_returns.csv
 ├── runs/                        # committed — reviewer reads every headline number without the dataset
 │   ├── evaluation_full.json
 │   ├── evaluation_testbed.json
@@ -499,15 +507,26 @@ return-risk-scorer/
 │   ├── DATA_NOTES.md            # Day 1 gate findings + split-strategy decision
 │   ├── EVALUATION.md            # per-class metrics, both cost axes, caveats
 │   └── PITCH.md                 # 5-minute pitch script
-├── tests/                       # see §9.3
+├── tests/                       # see §9.3 — all 15 files, none omitted
 │   ├── test_leakage.py
 │   ├── test_features.py
 │   ├── test_split.py
 │   ├── test_baseline_rule.py
+│   ├── test_model.py
+│   ├── test_evaluate.py
+│   ├── test_ablation.py
+│   ├── test_explain.py
+│   ├── test_smote_experiment.py
+│   ├── test_segment_audit.py
 │   ├── test_infer.py
 │   ├── test_score.py
+│   ├── test_require_artifacts.py
+│   ├── test_git_attribution.py
 │   └── test_compliance.py
-├── requirements.txt
+├── requirements.txt             # the 13 direct dependencies, exact pins
+├── requirements.lock            # full transitive closure — see §8.1
+├── pyproject.toml               # ruff + pytest configuration
+├── .gitignore
 ├── LICENSE
 └── README.md
 ```
@@ -577,6 +596,17 @@ Exact pins matter here for a specific reason: this repo is submitted for review 
 
 **Platform note — Apple Silicon:** `pip install lightgbm` succeeds but fails at import without OpenMP. Run `brew install libomp` **before** installing requirements. This belongs in Day 1 setup, not discovered mid-build, and it appears in the README above the `pip install` line rather than in a footnote.
 
+**Lockfile.** `requirements.txt` pins the 13 direct dependencies; `requirements.lock`
+pins the full transitive closure, so a rebuild cannot pick up a different
+resolution of an indirect package. It is resolved in a **clean venv** from
+`requirements.txt`, deliberately not frozen from a working environment — this
+project's own venv also holds `streamlit`, `altair`, `pydeck`, `jupyter` and the
+macOS-only `appnope`, left over from the cut demo app and from executing the
+notebooks. Freezing that would have pinned 91 packages, enshrined dependencies
+the project does not use, and produced a file that cannot install on Linux. The
+lock is 33 packages with no platform-specific entries. CI installs
+`requirements.txt`, so the direct pins stay exercised on every run.
+
 **Reproducibility:** Fix a single random seed (`RANDOM_STATE = 42`) at the top of `src/model.py` and reuse it everywhere — train/test split, model init, SMOTE — so results are reproducible run to run and defensible if a panelist asks to re-run the notebook.
 
 ## 8.2 Quickstart
@@ -608,6 +638,12 @@ python -m scripts.score --csv examples/sample_returns.csv --out scored.csv
 python -m scripts.score --csv examples/sample_returns.csv --track testbed \
     --friction "recovery-first (1:20)"
 
+# why this record got that call — signed per-feature SHAP, single records only
+python -m scripts.score --record-file examples/record.json --track full --explain
+
+# --out refuses to replace an existing file; pass --overwrite to allow it
+# for an exact environment rebuild: pip install -r requirements.lock  (§8.1)
+
 # no dataset? every headline number is committed:
 #   runs/evaluation_full.json, runs/evaluation_testbed.json,
 #   runs/friction_tradeoff_testbed.png
@@ -616,6 +652,41 @@ pytest
 ```
 
 This sequence is verified from a clean clone into a fresh virtualenv on Day 6. It is not assumed to work — hackathon repos routinely fail at exactly this step, and it is the first thing a reviewer touches.
+
+---
+
+### 8.3 What a scored result reports about its own inputs
+
+`src/infer.py` returns the routed decision *and* an account of what the model
+could not see. This exists because the alternative was measured and found
+dishonest: a record scored without three engineered features reported
+`features_missing: []`, which is indistinguishable from a complete record
+(§11, F6).
+
+Causes are **derived from the finished model frame**, not tracked as the record
+is assembled — whatever is NaN and unexplained by the three named causes is
+reported as degraded, so a cause nobody anticipated surfaces instead of
+vanishing.
+
+| field | meaning |
+|---|---|
+| `features_missing` | column absent from the input |
+| `features_invalid` | present, but not parseable as a number |
+| `features_out_of_range` | present and numeric, but impossible — negative money, a 0/1 flag holding 7. Nulled rather than allowed to drive a recommendation (§11, F5) |
+| `features_degraded` | present, valid, in range, and still not computable — an engineered ratio whose denominator was zero |
+| `n_features_not_seen` | the total, whatever the cause. The one number that cannot be gamed by how the causes are categorised |
+
+`score_batch` reports the same as **per-row** counts. `n_features_missing` stays
+frame-level, correctly: an absent column is absent for every row.
+
+The domain bounds behind `features_out_of_range` are read off the training data
+rather than invented — every numeric column in `data/processed/train.parquet`
+has `min >= 0`, and `return_rate_pct` is a percentage — so they cannot fire on a
+record drawn from the real distribution. They are checked at **inference only**:
+training, ablation and SMOTE go through `src.model.as_model_frame`, so no
+published number can move by construction. Cross-field invariants
+(`total_returns_lifetime <= total_orders_lifetime`) are deliberately excluded: a
+two-column rule has no unambiguous answer to which column to null.
 
 ---
 
@@ -770,8 +841,10 @@ dropped.
 - [x] `full` vs `testbed` distinction stated in the README, not discoverable only in code
 - [x] Clean-clone Quickstart verified from a fresh virtualenv
 - [x] ~~Working demo~~ → **`scripts/score.py` CLI** (record or CSV → class → routed
-      intervention, under an explicit `--posture` and `--friction`). The Streamlit demo was cut
+      intervention, under an explicit `--posture` and `--friction`, with `--explain`
+      for signed per-feature SHAP on the predicted class). The Streamlit demo was cut
       from scope; see §8. The deliverable is the real decision path, not a UI shell.
+- [x] Every scored result reports what the model could not see, split by cause (§8.3)
 - [ ] 5-minute pitch video — **open.** `docs/PITCH.md` is the written script;
       nothing has been recorded.
 - [x] This architecture document, with its correction log intact
@@ -785,6 +858,12 @@ dropped.
 - [x] Notebook outputs deliberately kept (all four notebooks executed in place,
       real output cells; they import from `src` and hold no logic)
 - [x] Secret scan over history clean
+- [x] `requirements.lock` — full transitive closure, clean-venv resolved (§8.1)
+- [x] Commit attribution guard in three layers: `.githooks/commit-msg` strips an
+      agent co-author trailer at write time, `.githooks/pre-push` refuses a push
+      carrying one anywhere in a message or in the author/committer fields, and
+      `tests/test_git_attribution.py` enforces both over the whole history in CI
+      and drives the pre-push hook against a scratch remote to prove it refuses
 
 ---
 
@@ -807,6 +886,31 @@ see the shape of what changed at a glance. Entries are never deleted.
 | Day 7 | §8 | No model binaries committed; `runs/` carries JSON and charts only | **`runs/model_full.joblib` committed**, plus `examples/` | The stated goal of committing `runs/` was that a reviewer without the dataset can still see the work. That reasoning covers the numbers but stopped short of the demo: with every bundle gitignored, `scripts/score.py` could not produce one prediction from a clean clone, and the only `--record` example in the docs was a `{"...": "..."}` placeholder that raises. 3.2M buys a demo that runs on `pip install` |
 | Day 7 | §8.2 | Pipeline stages fail with whatever exception the missing file raises | `require_artifacts` at each entry point: lists what is missing, names the command that builds it, exits 1 | Seven of eight `python -m src.*` entry points ended in a bare `FileNotFoundError` from library depth on a clean clone. `src/evaluate.py`'s was worse than absent — it guarded `model_{track}.json`, which *is* committed, then died on the gitignored `.npy`, so its friendly message was unreachable code |
 | Day 7 | §8, §6.2 | The scoring CLI exposes the cost policy through `--posture` alone | **`--friction` added**, and `--posture`'s help text corrected to state that it is the near-inert axis | The Day 4 correction moved the centerpiece to the friction axis, but the serving path was never updated to match: `src/infer.py` called `build_cost_matrix` without a `friction_cost`, silently taking the default, so the one axis §6.2 calls the deliverable could not be moved at the point of use. Measured before the fix: all three `--posture` values produce byte-identical actions for 12,000 of 12,000 rows on `full`, and differ on 29 at the extremes on `testbed`. `--friction` moves 764–1,219. Its `balanced (1:2)` default is the previously hardcoded value, so no committed artifact changed |
+
+### 11.1 Serving-path audit — after Day 7
+
+A ruthless read of the scoring path against `docs/Audit_Spec.md`, run after the
+build week closed. It found no security vulnerability, no hardcoded secret and
+no injection sink, and every reported metric matched `runs/`. What it did find
+was ten defects in how the CLI meets a caller, two of which changed behaviour
+and therefore belong in this log rather than only in a commit message.
+
+| # | § | Original behaviour | What replaced it | Trigger |
+|---|---|---|---|---|
+| F5 | §8.3 | Impossible input — negative money, negative account age, a 0/1 flag holding 7 — scored to **`Fraudulent Return` / `hard_block` at p ≈ 1** | Domain rules null the offending cell and name it; the same record now routes to **`approve`** | A system whose thesis is *proportionate* response was failing toward maximum punishment on data that describes nothing. Bounds read off the training data, checked at inference only |
+| F6 | §8.3 | A record scored without three engineered features reported `features_missing: []` | Causes derived from the finished frame; `features_degraded` and `n_features_not_seen` added | `src/features.py` nulls a zero denominator, so `avg_order_value_usd=0` silently dropped three features while the result claimed full data. The repo argues for honest reporting and its own scorer did not do it |
+| F1–F4 | §8 | A non-numeric cell, a mistyped path or an empty CSV raised a raw traceback from inside pandas or LightGBM | Coerced-and-reported, or a one-line exit naming the file | §8 claims a caller error must fail with a remedy, not a stack trace. Four paths did not |
+| F7 | §8.2 | `--out` replaced an existing file silently | Refuses without `--overwrite` | A scored batch is evidence someone may be working from; a re-run under a different `--friction` quietly replacing it is how wrong numbers reach a report |
+| F8 | §8.2 | Probabilities and a routed action, but no per-feature reasoning at the point of use; SHAP existed only as an offline per-class artifact | `--explain` returns signed contributions, sharing `src.explain`'s single `TreeExplainer` | Two explainers that drifted would make the explanation shown to a merchant disagree with the one in the writeup — the §8 two-implementations failure mode |
+| F9 | §8.1 | Direct dependencies pinned; transitive tree unpinned | `requirements.lock`, resolved in a clean venv | A plain `pip freeze` would have pinned 91 packages including streamlit, jupyter and the macOS-only `appnope`, and produced a file that cannot install on Linux |
+| F10 | §8 | `joblib.load` unpickles a bundle with no integrity check | `save_run` records a SHA-256; `load_run` verifies before unpickling | Scope stated honestly in the code: the digest sits beside the file it covers, so it stops corruption and a drifted `.joblib`/`.json` pair, not a deliberate attacker. Both bundles regenerated; retraining is deterministic and was confirmed byte-identical first, so no metric moved |
+
+Nothing in F1–F10 touched training, ablation or evaluation — the fixes live in
+`src/infer.py` and `scripts/score.py`, and the scored outputs for
+`examples/record.json` and the 20-row batch are identical to the pre-audit
+baseline once the new reporting fields are set aside.
+
+---
 
 **On keeping this log.** Every entry is a place the plan was wrong, and
 publishing that list is a deliberate choice. A reviewer's fastest way to

@@ -93,6 +93,12 @@ python -m scripts.score --csv examples/sample_returns.csv --track testbed \
     --friction "approve-first (4:1)"     #  2.9% frictioned, 85.7% caught
 ```
 
+Both need the `testbed` bundle, so run `python -m src.model testbed` first —
+only `runs/model_full.joblib` is committed, because `testbed` is a diagnostic
+rung rather than a model and is the larger file (`docs/ARCHITECTURE.md` §8). The
+commands under [Quickstart](#quickstart) that use `--track full` need no
+training run at all.
+
 On the full 12,000-row test set those two postures disagree on 1,219 and 764
 decisions respectively. `--posture`, which sweeps `C_fp : C_fn`, disagrees on
 **29** — and on `--track full` both flags change nothing at all, which is the
@@ -156,6 +162,22 @@ For an exact rebuild of the environment these numbers came from, install
 [`requirements.lock`](requirements.lock) instead of `requirements.txt`: it pins
 the full transitive tree, resolved in a clean venv rather than frozen from a
 working one.
+
+**What a scored record tells you it did not have.** Every result carries the
+features the model could not see, split by cause, because a recommendation made
+on a partial record has to say so rather than look identical to a complete one:
+
+| field | meaning |
+|---|---|
+| `features_missing` | the column was absent from the input |
+| `features_invalid` | present, but held something that is not a number |
+| `features_out_of_range` | present and numeric, but impossible — negative money, a 0/1 flag holding 7. Discarded rather than allowed to drive a recommendation |
+| `features_degraded` | present, valid and in range, and still not computable — an engineered ratio whose denominator was zero |
+| `n_features_not_seen` | the total, whatever the cause; the number that cannot be gamed by how the causes are categorised |
+
+The batch CSV carries the same as per-row counts (`n_features_missing`,
+`n_features_invalid`, `n_features_out_of_range`, `n_features_degraded`,
+`n_features_not_seen`). Full specification in `docs/ARCHITECTURE.md` §8.
 
 Dataset: [E-Commerce Return Abuse Detection](https://www.kaggle.com/datasets/sarveshchhetri/e-commerce-return-abuse-detection-dataset)
 (Kaggle, synthetic, 60,000 × 35).
@@ -232,8 +254,11 @@ src/infer.py       single-record + batch scoring -> recommended intervention
 src/explain.py     per-class SHAP, both tracks
 src/smote_experiment.py  SMOTE vs class-weighted on testbed
 src/segment_audit.py     segment-level FPR by order-value bucket
-scripts/score.py   CLI: score a record or CSV, --track, --posture, --friction
+scripts/score.py   CLI: score a record or CSV, --track, --posture, --friction,
+                    --explain (per-feature SHAP), --overwrite
 examples/          one record + a 20-row CSV, so the CLI runs with no dataset
+.githooks/         commit-msg + pre-push attribution guards — see Status
+requirements.lock  full transitive pin of the environment behind every number
 notebooks/         presentation only, imports from src, holds no logic —
                     01_eda, 02_feature_engineering, 03_modeling, 04_cost_calibration
 docs/              ARCHITECTURE.md   full design + correction log
@@ -279,12 +304,14 @@ two open items are listed as open rather than quietly dropped.
 **Delivery**
 
 - [x] `scripts/score.py` CLI — single record or batch CSV, `--track`,
-      `--posture` (the inert axis) and `--friction` (the live one). The planned
-      Streamlit demo was cut; see the correction log in `docs/ARCHITECTURE.md` §11
+      `--posture` (the inert axis), `--friction` (the live one), `--explain`
+      (signed per-feature SHAP for the predicted class) and `--overwrite`.
+      The planned Streamlit demo was cut; see the correction log in
+      `docs/ARCHITECTURE.md` §11
 - [x] Four presentation notebooks, executed in place, importing from `src`
       and holding no logic of their own
-- [x] `docs/ARCHITECTURE.md` reconciled — three corrections folded in, §10
-      checklist honest
+- [x] `docs/ARCHITECTURE.md` reconciled — every correction folded into its §11
+      log, §10 checklist honest
 - [x] 5-minute pitch script (`docs/PITCH.md`)
 - [x] Clean-clone into a fresh venv, Quickstart run verbatim — fully
       reproducible; every regenerated number matched, only artifact
