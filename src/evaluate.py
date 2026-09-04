@@ -509,7 +509,7 @@ def ambiguous_class_pairs(
 
     This is the runnable source for the "592 ambiguous rows, 342 of them
     Legitimate vs Policy Abuser, only 14 involving Fraudulent Return" figures
-    quoted throughout README.md and docs/, which previously existed only as
+    quoted throughout docs/, which previously existed only as
     prose with no committed code behind them (Day 6 correction: every quoted
     figure must be regenerable). Grouped by the model's *predicted*
     top-two classes, not the true label, since the question is which classes

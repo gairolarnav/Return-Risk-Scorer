@@ -307,6 +307,14 @@ arbitrary. "We dropped features until the task got hard" is not a result, and
 a reviewer will say so. Naming the testbed as not-a-model, in the README and in
 the code, is the only version of this that survives questioning.
 
+**And the selection itself touched the test set.** The ladder scores all eight
+feature sets against the same temporal test split, so the criterion that picked
+rung G — "first rung with enough probability mass near a decision boundary" —
+was read off that split. That is acceptable for a diagnostic and would not be
+acceptable for a reported model, which is the second reason `testbed` is
+labelled a rung rather than a result. Stated here rather than left for a
+reviewer to notice.
+
 ### 5.3 Hyperparameters were fixed, not tuned — and why
 
 **There is no validation split, no hyperparameter search, and no early
@@ -371,6 +379,19 @@ is the argument**; any one of those numbers alone misrepresents the project.*
 | **Policy Abuser** | missed-recovery cost (low) | small confusion cost | 0 | over-penalization cost |
 | **Fraudulent** | **`C_fn`** — real loss goes through | moderate | moderate | 0 |
 
+**The decision rule is expected-cost minimising, not `argmax`.** Given the
+model's class posterior `p(c)` for a row and the cost matrix `C[c, a]` above,
+the routed action is
+
+```
+action = argmin_a  Σ_c  p(c) · C[c, a]
+```
+
+so a row is routed by what its full probability vector costs under each
+available action, not by which single class happens to be most likely. This is
+the layer the sweeps below act on, and the one `src/infer.py` serves through
+(`expected_cost_decision`).
+
 **On the two dominant cells:** `C_fp` (blocking a legitimate customer) and `C_fn` (letting a real fraudulent return through) are the two costs that drive the decision policy, and **neither is declared larger than the other a priori.** Doing so would presuppose the answer to the exact question this framework exists to ask. Their *ratio* is the free parameter, it is not knowable from the data, and sweeping it is the analysis.
 
 - **Cost-ratio sensitivity analysis:** the `C_fp : C_fn` ratio is swept across 2–3 defensible merchant postures — e.g. loss-neutral (1:1), customer-retention-weighted (3:1), loss-averse (1:3) — with the resulting optimal per-class thresholds and the precision/recall they produce reported for each. **This range, not a single cherry-picked number, is the actual deliverable of the project.**
@@ -415,8 +436,8 @@ is the argument**; any one of those numbers alone misrepresents the project.*
 > | legitimate customers given friction | **2.78% → 24.79%** |
 > | wardrobers / policy abusers caught | **85.49% → 99.57%** |
 >
-> **That curve is the centerpiece** (`runs/friction_tradeoff_testbed.png`), and
-> it is what the README leads to after the leakage finding.
+> **That curve is the centerpiece** (`runs/friction_tradeoff_testbed.png`). The
+> README links to it; the reading of it is here and in `docs/EVALUATION.md`.
 >
 > The inert `C_fp:C_fn` axis is **still reported**. Showing which axis *doesn't*
 > move is part of the honest account — and reporting only the inert one would
@@ -498,9 +519,21 @@ return-risk-scorer/
 │   ├── record.json
 │   └── sample_returns.csv
 ├── runs/                        # committed — reviewer reads every headline number without the dataset
-│   ├── evaluation_full.json
-│   ├── evaluation_testbed.json
-│   └── friction_tradeoff_testbed.png
+│   ├── model_full.joblib        # the one model binary committed (3.2M) — see below
+│   ├── model_full.json          # + model_testbed.json — per-track metrics
+│   ├── evaluation_full.json     # + evaluation_testbed.json — per-class metrics, both cost axes
+│   ├── baseline_rule.json       # the untrained 4-rule anchor (§2 correction)
+│   ├── ablation_ladder.json     # + .md — the degeneracy ladder (§5.2)
+│   ├── ambiguity_full.json      # + ambiguity_testbed.json — top-two-margin pairs (§6.2)
+│   ├── shap_full.json           # + shap_testbed.json, shap_*.png — per-class SHAP
+│   ├── shap_interpretation.md   # written reading of why the confusable classes confuse
+│   ├── smote_testbed.json       # + smote_verdict.md — verdict: discard (§5)
+│   ├── segment_fpr_full.json    # + segment_fpr_testbed.json, *.png
+│   ├── segment_fpr_audit.md     # FPR by order-value bucket, written up
+│   ├── friction_tradeoff_testbed.png   # + _full, + .csv — the centerpiece curve (§6.2)
+│   ├── cost_tradeoff_*.png/.csv # the inert C_fp:C_fn axis, reported anyway
+│   ├── confusion_*.png
+│   └── pr_curves_*.png
 ├── docs/
 │   ├── ARCHITECTURE.md          # this file
 │   ├── LEAKAGE_FINDING.md       # the headline result — read this second, after the README
@@ -613,6 +646,12 @@ lock is 33 packages with no platform-specific entries. CI installs
 ```bash
 git clone <repo-url>
 cd return-risk-scorer
+
+# Hook path is local config and does not survive a clone — set it once, here.
+# commit-msg strips agent attribution trailers; pre-push refuses any that
+# survive. Without this line neither hook runs (§10, repo hygiene).
+git config core.hooksPath .githooks
+
 python3.11 -m venv venv && source venv/bin/activate   # or venv\Scripts\activate on Windows
 # macOS on Apple Silicon: brew install libomp
 pip install -r requirements.txt
@@ -718,7 +757,7 @@ two-column rule has no unambiguous answer to which column to null.
 
 Three questions, answered from the raw CSV before any modeling work begins, because each one can invalidate a later day's plan:
 
-1. **Is there a usable repeat-customer identifier?** Report the distribution of rows-per-customer. A median of 1 means every constructed feature in §4.2 is undefined, and Day 2's scope changes to the §4.1 fallback. *(See the §4.2 open item — this answer belongs in `docs/DATA_NOTES.md` and must be stated in the README before submission.)*
+1. **Is there a usable repeat-customer identifier?** Report the distribution of rows-per-customer. A median of 1 means every constructed feature in §4.2 is undefined, and Day 2's scope changes to the §4.1 fallback. *(See the §4.2 open item — this answer belongs in `docs/DATA_NOTES.md`, and §4.2 carries its consequence for the feature plan.)*
 2. **Is there a usable timestamp?** Decides temporal vs. random split (§2), which affects every number reported afterwards and cannot be changed retroactively without redoing the evaluation. *(Resolved: temporal split in use.)*
 3. **Leakage sweep.** Mutual information per feature against the label, plus a ~~depth-1~~ decision tree per feature. Any single feature reaching ~0.6 macro-F1 alone is a generation artifact of the synthetic dataset, not a signal, and must be identified before it silently produces a headline number that collapses under questioning.
 
@@ -800,6 +839,27 @@ the claims" was the right *principle* and the wrong *number*; the suite is
 larger because the serving path and the repo-hygiene surface both turned out to
 need guarding, not because coverage became a target. It still is not one.
 
+**What the suite defends.** Coverage is concentrated on the claims that would
+be expensive to get silently wrong:
+
+- **The decision layer**, where a wrong cost matrix produces plausible-looking
+  numbers that are simply false — cost-cell placement, Bayes optimality,
+  monotonicity in `C_fp`, the oracle lower bound, and the degeneracy detector
+  firing on saturated probabilities.
+- **The rule baseline**, whose 0.9188 macro-F1 is the headline finding. The
+  four thresholds are pinned branch by branch, so an edit to the rule fails the
+  suite instead of silently falsifying every document that quotes it.
+- **The serving path**, with one regression test per historical bug in
+  `src/infer.py` (§11.1), plus partial-record handling — a caller who omits a
+  field gets a scored result that names what was missing, not a library
+  traceback.
+- **The invariants**: no `abuse_label` in the feature matrix, train/test
+  disjoint and ordered in time, no ablation rung retaining an algebraic
+  restatement of a feature it drops, and no module importing a generative or
+  LLM library.
+- **Commit attribution**, over the whole reachable history — see the §10 repo
+  hygiene entry for why a hook alone is not enough.
+
 **Two standing rules.** Every test runs on committed fixtures — a suite that
 needs the Kaggle CSV can never run in CI or on a reviewer's machine. And **a
 failing test is a finding, not a bug in the test**: if T.2 fails, that is real
@@ -848,8 +908,18 @@ dropped.
 - [x] Explicit synthetic-data limitation, at the strength of the §2 correction
 - [x] Explicit leakage-screening result, including the depth-1 gate bug and its fix
 - [x] Explicit failure-mode disclosure (Legitimate vs Policy Abuser)
-- [x] `full` vs `testbed` distinction stated in the README, not discoverable only in code
-- [x] Clean-clone Quickstart verified from a fresh virtualenv
+- [x] Per-class SHAP on both tracks, with a written reading of *why* the
+      confusable classes confuse (`runs/shap_interpretation.md`)
+- [x] SMOTE tested against the class-weighted baseline on `testbed`, judged by
+      criteria fixed before the result — **verdict: discard**
+      (`runs/smote_verdict.md`, `runs/smote_testbed.json`)
+- [x] Segment-level FPR audit by order-value bucket, checking the policy is not
+      concentrating false blocks on one customer segment
+      (`runs/segment_fpr_audit.md`) — the §6.2 stretch goal, delivered
+- [x] `full` vs `testbed` distinction named in the README, with the reasoning in §5.2 — not discoverable only in code
+- [x] Clean-clone Quickstart verified from a fresh virtualenv: cloned into a
+      fresh venv and run verbatim, every regenerated number matched, only
+      artifact timestamps differed
 - [x] ~~Working demo~~ → **`scripts/score.py` CLI** (record or CSV → class → routed
       intervention, under an explicit `--posture` and `--friction`, with `--explain`
       for signed per-feature SHAP on the predicted class). The Streamlit demo was cut
