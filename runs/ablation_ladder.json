@@ -1,6 +1,6 @@
 {
   "decided_prob_threshold": 0.9,
-  "note": "Diagnostic evidence for the Day 1 leakage finding, not a feature-selection procedure. See src/ablation.py docstring and docs/LEAKAGE_FINDING.md.",
+  "note": "Diagnostic evidence for the leakage finding, not a feature-selection procedure. See src/ablation.py docstring and docs/LEAKAGE_FINDING.md.",
   "ladder": [
     {
       "feature_set": "A. all features",
