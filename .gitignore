@@ -30,3 +30,7 @@ runs/*.npy
 # Instruction documents, not engineering artifacts. ARCHITECTURE.md §11.1: a
 # submission that ships its own review prompt reads as output rather than work.
 docs/Audit_Spec.md
+
+# Pre-submission verification report. A generated review artifact about the
+# repository, not part of the system it reviews -- same reasoning as Audit_Spec.
+docs/report.docx
