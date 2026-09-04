@@ -27,7 +27,7 @@ N_PER_CLASS = 6  # >= 3 per class so 3-fold CV gets a full fold of every class
 
 @pytest.fixture
 def leaky_df():
-    """`abuse_label` is a 1:1 encoding of `abuse_type` -- the actual Day 1
+    """`abuse_label` is a 1:1 encoding of `abuse_type` -- the actual
     leak. `innocuous_feature` is pure noise, a negative control. `return_date`
     is included only so build_and_split (which requires it) can run."""
     rng = np.random.default_rng(0)
@@ -42,7 +42,7 @@ def leaky_df():
 
 
 def test_leakage_sweep_flags_a_1to1_encoded_label(leaky_df):
-    """The exact Day 1 bug: a column that perfectly determines the label must
+    """The exact gate bug: a column that perfectly determines the label must
     be flagged a suspect at the corrected depth (n_classes - 1)."""
     result = leakage_sweep(leaky_df, target_col="abuse_type")
     suspects = set(result["suspects"]["feature"])

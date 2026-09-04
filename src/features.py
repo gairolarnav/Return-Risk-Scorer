@@ -1,7 +1,7 @@
 """
 Feature engineering (ARCHITECTURE.md §4).
 
-Written against the CONFIRMED schema (60,000 x 35), after the Day 1 gate ran
+Written against the CONFIRMED schema (60,000 x 35), after the data gate ran
 against the real file. See docs/DATA_NOTES.md for the findings this module
 is built on. Three of them shape the code here:
 
@@ -44,7 +44,7 @@ PROCESSED_DIR = Path("data/processed")
 TARGET_COL = "abuse_type"
 
 # Never fed to the model.
-#   abuse_label  — 1:1 encoding of the target (Day 1 leakage finding)
+#   abuse_label  — 1:1 encoding of the target (leakage finding)
 #   order_id     — unique per row, pure identifier
 #   customer_id  — 58,006 near-unique values, no repeat history to exploit
 #   order_date / return_date — used to build the temporal split and
@@ -61,7 +61,7 @@ SPLIT_DATE_COL = "return_date"
 TEST_FRACTION = 0.2
 
 
-# Dual-track feature sets, decided Day 2 after the leakage finding below.
+# Dual-track feature sets, decided after the leakage finding below.
 #
 # docs/LEAKAGE_FINDING.md establishes that this dataset's classes are
 # box-separated by the generator: four hand-written if/else rules score 0.919

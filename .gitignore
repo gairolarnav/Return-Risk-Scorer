@@ -26,3 +26,7 @@ runs/*.npy
 .ruff_cache/
 .pytest_cache/
 .ipynb_checkpoints/
+
+# Instruction documents, not engineering artifacts. ARCHITECTURE.md §11.1: a
+# submission that ships its own review prompt reads as output rather than work.
+docs/Audit_Spec.md

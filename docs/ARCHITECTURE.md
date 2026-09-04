@@ -19,7 +19,7 @@
 > | §2 | Synthetic data means "absolute numbers may not transfer" | **Superseded** — the problem is stronger than a transfer caveat |
 > | §6.2 | The `C_fp : C_fn` sweep is "the actual deliverable of the project" | **Superseded** — that axis is inert; the friction axis replaced it |
 > | §9.1 | Leakage sweep uses a depth-1 tree per feature | **Corrected** — depth-1 is invalid on a 4-class target and missed the leak |
-> | §9 Day 6 | "3–4 pytest tests on `features.py`" | **Widened** — the leakage finding changed what needs guarding |
+> | §9 | "3–4 pytest tests on `features.py`" | **Widened** — the leakage finding changed what needs guarding |
 >
 > Full correction log with dates in §11. The complete leakage investigation is
 > `docs/LEAKAGE_FINDING.md` and is the document a reviewer should read second,
@@ -59,15 +59,15 @@ A uniformly punitive system is exactly the failure mode the buildathon brief pen
 | Fraudulent Return | 6,112 | 10.19% | Empty boxes, wrong/substitute item, tracking manipulation |
 | Wardrobing | 4,636 | 7.73% | Used-once-then-returned |
 
-*Counts are the dataset's exact class distribution, confirmed during the Day 1/2
+*Counts are the dataset's exact class distribution, confirmed during the
 leakage investigation. The class label in the data is `Policy Abuser`; this
 document uses that spelling throughout, matching the data rather than prose.*
 
 **Known limitation (stated up front, not discovered later):** This dataset is fully synthetic. It is useful for building and honestly evaluating a modeling *methodology*, but any absolute performance numbers should be presented as a proof of concept against synthetic ground truth, not as a claim about real-world merchant data. This caveat goes directly in the final writeup and pitch — the brief rewards honesty about this more than it penalizes using synthetic data at all.
 
-**Second limitation, specific to synthetic data — label leakage.** A rule-generated dataset frequently contains one or more features that near-deterministically encode the label. Unchecked, this produces an implausibly strong model that collapses under the first question a panelist asks. Leakage screening is therefore a gated Day 1 task, not an afterthought — see §9.1.
+**Second limitation, specific to synthetic data — label leakage.** A rule-generated dataset frequently contains one or more features that near-deterministically encode the label. Unchecked, this produces an implausibly strong model that collapses under the first question a panelist asks. Leakage screening is therefore a gated pre-modeling task, not an afterthought — see §9.1.
 
-> ### CORRECTION (Day 2) — the caveat above is not strong enough
+> ### CORRECTION — the caveat above is not strong enough
 >
 > The paragraph above was written to cover *"absolute numbers may not transfer
 > to real merchant data."* The actual finding is a stronger claim and the
@@ -82,7 +82,7 @@ document uses that spelling throughout, matching the data rather than prose.*
 > |---|---|---|
 > | Always-predict-Legitimate strawman | 0.6954 | 0.2051 |
 > | **Four hand-written rules, no training** | **0.9425** | **0.9188** |
-> | LightGBM, full feature set (unweighted Day 2 baseline) | 0.9994 | 0.9986 |
+> | LightGBM, full feature set (unweighted baseline) | 0.9994 | 0.9986 |
 >
 > `Fraudulent Return` and `Wardrobing` are recovered at **100% recall by two
 > threshold comparisons.**
@@ -98,19 +98,19 @@ document uses that spelling throughout, matching the data rather than prose.*
 > selection, the decisive rule test — in `docs/LEAKAGE_FINDING.md`.
 >
 > **Two model numbers appear in this repository, and they are not the same
-> measurement.** 0.9986 / 0.9994 is the *unweighted* Day 2 baseline that tripped
+> measurement.** 0.9986 / 0.9994 is the *unweighted* baseline that tripped
 > the §6.4 gate — the number this block and `docs/LEAKAGE_FINDING.md` narrate,
 > reproducible with `train_track(..., class_weighted=False)`. **0.9988 / 0.9995**
 > is the shipped `full` track, which is class-weighted (§5); it is what
 > `runs/model_full.json`, `README.md` and `docs/EVALUATION.md` report. The gap
 > between them is 0.0002 macro-F1 — class weighting is very nearly a no-op on a
 > model this saturated, which is itself part of the finding. Where this document
-> narrates a Day 1/2 event it quotes the number measured that day; where it
+> narrates the investigation it quotes the number measured then; where it
 > states the deliverable it quotes the shipped model.
 
-**Data split strategy:** Stratified train/test split preserving class ratios (80/20). If a usable timestamp field exists, a temporal split is preferred over random. Which one applies is determined by the Day 1 data gate (§9.1) and recorded in `docs/DATA_NOTES.md` with the reasoning.
+**Data split strategy:** Stratified train/test split preserving class ratios (80/20). If a usable timestamp field exists, a temporal split is preferred over random. Which one applies is determined by the data gate (§9.1) and recorded in `docs/DATA_NOTES.md` with the reasoning.
 
-*Resolved: a temporal split is in use. The Day 1 baseline in
+*Resolved: a temporal split is in use. The baseline in
 `docs/LEAKAGE_FINDING.md` is reported on a temporal split.*
 
 ---
@@ -188,9 +188,9 @@ in the feature layer, and the `full | testbed` track selector on the classifier
 - Same-day multi-SKU-variant orders followed by partial returns (bracketing proxy)
 - Variance in declared return reason across a customer's history (inconsistency signal)
 
-**This section is conditional on a Day 1 finding.** These features require a genuine repeat-customer ID with enough per-customer history to be meaningful. Whether that exists is the first question the Day 1 data gate answers (§9.1). If the median rows-per-customer is 1, every feature in §4.2 is undefined, the transaction-level set in §4.1 carries the model alone, and that becomes a headline limitation in the writeup — documented, not hidden.
+**This section is conditional on a data-gate finding.** These features require a genuine repeat-customer ID with enough per-customer history to be meaningful. Whether that exists is the first question the data gate answers (§9.1). If the median rows-per-customer is 1, every feature in §4.2 is undefined, the transaction-level set in §4.1 carries the model alone, and that becomes a headline limitation in the writeup — documented, not hidden.
 
-> ### NOTE (Day 2) — partially resolved, one open item
+> ### NOTE — partially resolved, one open item
 >
 > The dataset ships several per-customer **lifetime aggregate columns**
 > pre-computed — `total_orders_lifetime`, `total_returns_lifetime`,
@@ -204,16 +204,16 @@ in the feature layer, and the `full | testbed` track selector on the classifier
 > (`returns_per_order` == `return_rate_pct` / 100). An ablation that drops a
 > feature but keeps a derived restatement of it measures nothing. Each ablation
 > rung now drags its proxies out with it, and `tests/` freezes this as an
-> assertion (§9.3, T.4) rather than leaving it as prose someone can regress past.
+> assertion (§9.2, T.4) rather than leaving it as prose someone can regress past.
 >
 > **OPEN — must be filled from `docs/DATA_NOTES.md` before submission:** the
 > rows-per-customer distribution, and therefore whether the *constructed*
 > trailing/temporal aggregates in §4.2 are defined at all. This document does
 > not assert an answer it does not have. If the median is 1, say so in the
 > README as a limitation; if it is greater than 1, the trailing-window features
-> are live and the temporal-leakage test (§9.3, T.2) is load-bearing.
+> are live and the temporal-leakage test (§9.2, T.2) is load-bearing.
 >
-> ### CLOSED (Day 6, while writing T.2) — neither branch above is quite right
+> ### CLOSED (while writing T.2) — neither branch above is quite right
 >
 > Median rows-per-customer is 1.0 (`docs/DATA_NOTES.md`), but that isn't the
 > whole picture: 1,945 of 58,006 customers *do* repeat (max 4 rows). The open
@@ -248,10 +248,10 @@ in the feature layer, and the `full | testbed` track selector on the classifier
 - **Explainability:** SHAP values on the final model, per-class, to support the architecture doc and pitch — the panel should be able to see *why* wardrobing and policy abuse get confused, not just that they do.
 
 ### 5.1 Explicitly out of scope
-- **Isolation Forest / unsupervised anomaly scoring.** Previously carried as an optional secondary signal. Cut from the build: it adds a second model with no defined path into the decision layer (§3), a second explainability story to tell inside a five-minute pitch, and a scope-creep vector on the tightest days. It is recorded as future work in the writeup — which costs nothing and claims nothing.
+- **Isolation Forest / unsupervised anomaly scoring.** Previously carried as an optional secondary signal. Cut from the build: it adds a second model with no defined path into the decision layer (§3), a second explainability story to tell inside a five-minute pitch, and a scope-creep vector on a tight build. It is recorded as future work in the writeup — which costs nothing and claims nothing.
 - Any generative, adversarial, or pattern-synthesis component (see §7 — this is a hard constraint, not a scoping choice).
 
-### 5.2 Dual-track build — ADDED Day 2
+### 5.2 Dual-track build
 
 *This section did not exist in the original plan. It is the build's response to
 the §2 correction and is the design decision most likely to be misread by a
@@ -359,7 +359,7 @@ claimed as done.
 ## 6. Evaluation Framework — "Honest Metrics" (the core grading criterion)
 
 ### 6.1 What will NOT be the headline metric
-Macro-accuracy. With a 70% legitimate majority class, a model predicting "legitimate" for everything scores ~70% accuracy while being useless. This strawman baseline is computed and recorded on Day 2 alongside the first real model, and shown explicitly in the writeup to justify why accuracy is rejected.
+Macro-accuracy. With a 70% legitimate majority class, a model predicting "legitimate" for everything scores ~70% accuracy while being useless. This strawman baseline is computed and recorded alongside the first real model, and shown explicitly in the writeup to justify why accuracy is rejected.
 
 *Recorded: the strawman scores 0.6954 accuracy / 0.2051 macro-F1. Per the §2
 correction, it is now reported as the first of three anchors — strawman, then
@@ -397,7 +397,7 @@ the layer the sweeps below act on, and the one `src/infer.py` serves through
 - **Cost-ratio sensitivity analysis:** the `C_fp : C_fn` ratio is swept across 2–3 defensible merchant postures — e.g. loss-neutral (1:1), customer-retention-weighted (3:1), loss-averse (1:3) — with the resulting optimal per-class thresholds and the precision/recall they produce reported for each. **This range, not a single cherry-picked number, is the actual deliverable of the project.**
 - **Segment-level false-positive rate (stretch goal):** FPR broken out by return-value bucket or order-value bucket, to check the model isn't concentrating false blocks on any one customer segment — adapted from the Bank Account Fraud fairness-audit methodology.
 
-> ### CORRECTION (Day 4) — §6.2 was measuring the wrong axis
+> ### CORRECTION — §6.2 was measuring the wrong axis
 >
 > The bolded sentence above is wrong, and it was the plan's central bet.
 >
@@ -454,9 +454,9 @@ prediction that was made and then falsified by measurement is evidence the
 measurement was real.*
 
 ### 6.4 Suspiciously-good-result protocol
-Any headline macro-F1 above ~0.95 is treated as a leakage signal, not a result, and blocks progress until explained (§9.1, Day 2 checkpoint). Whatever the outcome — a real leak found and removed, or a defensible explanation for why the synthetic generator makes the task genuinely easy — it goes in the writeup. "Our model scores 0.97" with no accompanying account of why is the single easiest claim for a panelist to dismantle.
+Any headline macro-F1 above ~0.95 is treated as a leakage signal, not a result, and blocks progress until explained (§9.1). Whatever the outcome — a real leak found and removed, or a defensible explanation for why the synthetic generator makes the task genuinely easy — it goes in the writeup. "Our model scores 0.97" with no accompanying account of why is the single easiest claim for a panelist to dismantle.
 
-> ### The protocol fired, and it worked (Day 2)
+> ### The protocol fired, and it worked
 >
 > The first end-to-end baseline scored **0.9986 macro-F1**, tripping this gate.
 > Progress was blocked, the investigation ran, and it produced both the §2
@@ -466,6 +466,14 @@ Any headline macro-F1 above ~0.95 is treated as a leakage signal, not a result, 
 > This is recorded here deliberately. A pre-committed protocol that then fired
 > and changed the build is stronger evidence of method than a protocol that
 > never had to do anything. Its output is `docs/LEAKAGE_FINDING.md`.
+>
+> **And it caught a failure nobody had predicted.** The risk anticipated in
+> advance was that per-customer aggregates would turn out to be undefined
+> (§4.2). The failure that actually arrived was a degenerate generator that made
+> the whole task trivial. The mitigation worked anyway, and the reason is worth
+> stating: it was a **gate** — stop on a suspicious result, whatever its cause —
+> rather than a **forecast** of one specific failure. A gate catches the failure
+> you did not think of; a forecast only catches the one you did.
 
 ---
 
@@ -489,7 +497,7 @@ evidence of compliance than a test in CI.*
 ```
 return-risk-scorer/
 ├── .github/workflows/
-│   └── ci.yml                   # ruff check + pytest on push (fetch-depth: 0, see §9.3)
+│   └── ci.yml                   # ruff check + pytest on push (fetch-depth: 0, see §9.2)
 ├── .githooks/                   # local config — `git config core.hooksPath .githooks`
 │   ├── commit-msg               # strips agent attribution trailers as a commit is written
 │   └── pre-push                 # refuses a push whose commits carry any, the last gate before GitHub
@@ -502,7 +510,7 @@ return-risk-scorer/
 │   ├── 03_modeling.ipynb
 │   └── 04_cost_calibration.ipynb
 ├── src/
-│   ├── data_gate.py             # Day 1 gate: customer-ID viability, split strategy, leakage sweep
+│   ├── data_gate.py             # data gate: customer-ID viability, split strategy, leakage sweep
 │   ├── features.py              # feature builders + DROP_COLS leakage quarantine
 │   ├── ablation.py              # degeneracy ladder (diagnostic evidence, not feature selection)
 │   ├── model.py                 # train/predict/threshold logic; `full` | `testbed` track selector
@@ -537,9 +545,9 @@ return-risk-scorer/
 ├── docs/
 │   ├── ARCHITECTURE.md          # this file
 │   ├── LEAKAGE_FINDING.md       # the headline result — read this second, after the README
-│   ├── DATA_NOTES.md            # Day 1 gate findings + split-strategy decision
+│   ├── DATA_NOTES.md            # data-gate findings + split-strategy decision
 │   └── EVALUATION.md            # per-class metrics, both cost axes, caveats
-├── tests/                       # see §9.3 — all 15 files, none omitted
+├── tests/                       # see §9.2 — all 15 files, none omitted
 │   ├── test_leakage.py
 │   ├── test_features.py
 │   ├── test_split.py
@@ -565,14 +573,14 @@ return-risk-scorer/
 
 **On notebooks vs. `src/`:** the four notebooks exist for presentation and exploration only. They import from `src` and contain no logic of their own. The failure mode otherwise is two divergent implementations of the same feature builder, which a reviewer will find and which invalidates any number the notebook produces.
 
-**On what is and isn't committed (added Day 6, extended Day 7).** `runs/` **is**
+**On what is and isn't committed, extended once the CLI became the deliverable.** `runs/` **is**
 committed and `data/raw/` is **not**. Most reviewers will never download a 60k-row
 Kaggle CSV, so every headline number must be readable from the repo alone.
 Committing someone else's dataset is separately a bloat and licensing problem.
 
-Day 7 extends that principle from the numbers to the demo. The same reviewer who
+A later extension carries that principle from the numbers to the demo. The same reviewer who
 will not download the dataset also will not run a training pipeline to see one
-prediction, and until Day 7 that is exactly what `scripts/score.py` required —
+prediction, and that is exactly what `scripts/score.py` used to require —
 model bundles are gitignored, so the CLI could not produce a single score from a
 clean clone. Now committed:
 
@@ -591,7 +599,7 @@ redistributing it — and 3.2M is a proportionate price for a demo that runs.
 
 ## 8.1 Environment & Dependencies
 
-**Language:** Python 3.11 specifically — not 3.12+. `shap` and `lightgbm` wheel availability lags new interpreter releases, and a build week is the wrong time to be compiling from source.
+**Language:** Python 3.11 specifically — not 3.12+. `shap` and `lightgbm` wheel availability lags new interpreter releases, and a submission deadline is the wrong time to be compiling from source.
 
 **Core libraries:**
 - `pandas`, `numpy`, `pyarrow` — data handling; parquet for `data/processed`, since CSV round-trips lose dtypes and are slow at 60k × 35
@@ -626,7 +634,7 @@ ruff==0.7.0
 
 Exact pins matter here for a specific reason: this repo is submitted for review and may be cloned weeks later. `>=` constraints guarantee that a future resolver picks different versions than the ones the reported numbers were produced with, which quietly breaks both reproducibility and the Quickstart.
 
-**Platform note — Apple Silicon:** `pip install lightgbm` succeeds but fails at import without OpenMP. Run `brew install libomp` **before** installing requirements. This belongs in Day 1 setup, not discovered mid-build, and it appears in the README above the `pip install` line rather than in a footnote.
+**Platform note — Apple Silicon:** `pip install lightgbm` succeeds but fails at import without OpenMP. Run `brew install libomp` **before** installing requirements. This belongs in first-run setup, not discovered mid-build, and it appears in the README above the `pip install` line rather than in a footnote.
 
 **Lockfile.** `requirements.txt` pins the 13 direct dependencies; `requirements.lock`
 pins the full transitive closure, so a rebuild cannot pick up a different
@@ -657,7 +665,7 @@ python3.11 -m venv venv && source venv/bin/activate   # or venv\Scripts\activate
 pip install -r requirements.txt
 
 # place the Kaggle CSV at data/raw/returns.csv, then:
-python -m src.data_gate        # Day 1 checks: customer viability, split strategy, leakage sweep
+python -m src.data_gate        # gate checks: customer viability, split strategy, leakage sweep
 python -m src.features         # builds processed train/test sets
 python -m src.ablation         # the degeneracy ladder
 python -m src.model            # trains + saves both tracks
@@ -689,7 +697,7 @@ python -m scripts.score --record-file examples/record.json --track full --explai
 pytest
 ```
 
-This sequence is verified from a clean clone into a fresh virtualenv on Day 6. It is not assumed to work — hackathon repos routinely fail at exactly this step, and it is the first thing a reviewer touches.
+This sequence is verified from a clean clone into a fresh virtualenv. It is not assumed to work — submitted repos routinely fail at exactly this step, and it is the first thing a reviewer touches.
 
 ---
 
@@ -728,40 +736,20 @@ two-column rule has no unambiguous answer to which column to null.
 
 ---
 
-## 9. Build Plan (7 Days)
+## 9. Data Gate and Test Plan
 
-| Day | Focus | Output |
-|---|---|---|
-| 1 | **Data gate** (first ~2h) + scaffolding + transaction-level features | `src/data_gate.py` and `docs/DATA_NOTES.md` answering the three gate questions (§9.1); repo scaffolding, pinned venv, `libomp` if on macOS; column documentation, class-balance confirmation; `features.py` v1 |
-| 2 | Customer-behavioral aggregates + baseline model + **leak checkpoint** | `features.py` v2; end-to-end unweighted LightGBM baseline; strawman number recorded for §6.1; **hard gate: macro-F1 > ~0.95 stops progress until explained (§6.4)** |
-| 3 | Imbalance handling + tuning — **half day** — then start cost matrix | Class-weighted model, SMOTE tested with a documented keep/discard decision, basic hyperparameter pass. Second half: cost matrix definition begins early |
-| 4 | **Cost-based decision policy — full day, protected** | Cost matrix finalized, posture sweep, per-scenario thresholds + resulting per-class precision/recall. Inherits the buffer Day 3 gave up |
-| 5 | Evaluation writeup + SHAP + **pitch script drafted** | Per-class precision/recall/F1, confusion matrix, PR curves, per-class SHAP, failure-mode disclosure. The 5-minute pitch is *scripted today*, while results are fresh |
-| 6 | Demo (half day) + **clean-clone reproducibility test** + tests | Streamlit app (record → class → intervention), timeboxed to ~80 lines. Then: fresh clone into a new venv, run §8.2 verbatim, fix what breaks. Test suite per §9.3 |
-| 7 | Pitch recording + final polish + buffer | 5-min pitch recorded from the Day 5 script, this document finalized with real numbers, README finished, repo cleanup; stretch goal (segment-level FPR audit) only if genuinely free |
+Two things gate the build: a data gate that runs before any modeling, and a
+test plan ranked by what each test defends rather than by ease of writing.
 
-> ### WHAT ACTUALLY HAPPENED (Days 1–4)
->
-> - **Day 2 fired the §6.4 gate** at 0.9986 macro-F1 and the build stopped as
->   specified. The investigation consumed the day and produced the §2 correction.
->   The **dual-track design (§5.2) is the response** and did not exist in the plan.
-> - **Day 4 falsified the plan's central bet.** The `C_fp:C_fn` sweep the plan
->   called "the actual deliverable" returned a flat line; the centerpiece moved
->   to the friction axis (§6.2 correction).
-> - **Net effect on the schedule:** the deliverable named on Day 4 changed, but
->   the day itself still carried the analysis it was protected for. The plan's
->   protection of Day 4 was correct even though its prediction of what Day 4
->   would produce was wrong.
+### 9.1 The data gate
 
-### 9.1 The Day 1 data gate
+Three questions, answered from the raw CSV before any modeling work begins, because each one can invalidate the feature plan:
 
-Three questions, answered from the raw CSV before any modeling work begins, because each one can invalidate a later day's plan:
-
-1. **Is there a usable repeat-customer identifier?** Report the distribution of rows-per-customer. A median of 1 means every constructed feature in §4.2 is undefined, and Day 2's scope changes to the §4.1 fallback. *(See the §4.2 open item — this answer belongs in `docs/DATA_NOTES.md`, and §4.2 carries its consequence for the feature plan.)*
+1. **Is there a usable repeat-customer identifier?** Report the distribution of rows-per-customer. A median of 1 means every constructed feature in §4.2 is undefined, and the feature plan falls back to §4.1. *(See the §4.2 open item — this answer belongs in `docs/DATA_NOTES.md`, and §4.2 carries its consequence for the feature plan.)*
 2. **Is there a usable timestamp?** Decides temporal vs. random split (§2), which affects every number reported afterwards and cannot be changed retroactively without redoing the evaluation. *(Resolved: temporal split in use.)*
 3. **Leakage sweep.** Mutual information per feature against the label, plus a ~~depth-1~~ decision tree per feature. Any single feature reaching ~0.6 macro-F1 alone is a generation artifact of the synthetic dataset, not a signal, and must be identified before it silently produces a headline number that collapses under questioning.
 
-> ### CORRECTION (Day 2) — the depth-1 tree was an invalid test, and it missed the leak
+> ### CORRECTION — the depth-1 tree was an invalid test, and it missed the leak
 >
 > **A depth-1 decision tree cannot detect single-feature leakage on a 4-class
 > target.** One split produces two leaves, so the tree can name at most 2 of 4
@@ -788,7 +776,7 @@ Three questions, answered from the raw CSV before any modeling work begins, beca
 > **Fix applied in `src/data_gate.py`:** the sweep now fits at depth
 > `max(2, n_classes - 1)` and reports the depth-1 number alongside it, so the
 > failure mode stays visible instead of being quietly patched out.
-> `abuse_label` is in `DROP_COLS`, and `tests/test_leakage.py` (§9.3, T.1) is a
+> `abuse_label` is in `DROP_COLS`, and `tests/test_leakage.py` (§9.2, T.1) is a
 > permanent tripwire against its return.
 >
 > **What this correction does not fix.** Dropping `abuse_label` moved the
@@ -799,11 +787,11 @@ Three questions, answered from the raw CSV before any modeling work begins, beca
 > and **a per-feature-only leakage gate is now a recorded limitation of this
 > methodology**, not a solved problem.
 
-All three findings and their consequences are written to `docs/DATA_NOTES.md` on Day 1 and referenced in the final writeup.
+All three findings and their consequences are written to `docs/DATA_NOTES.md` and referenced in the final writeup.
 
-### 9.3 Test plan — WIDENED Day 6
+### 9.2 Test plan — widened after the leakage finding
 
-> The original Day 6 line read *"3–4 `pytest` tests on `features.py`."* That
+> The original plan called for *"3–4 `pytest` tests on `features.py`."* That
 > predates the leakage finding and is too narrow. On a project whose headline
 > result is about leakage, the tests must guard the leakage claims — otherwise
 > one careless commit re-introduces the leak and nothing catches it.
@@ -866,27 +854,6 @@ failing test is a finding, not a bug in the test**: if T.2 fails, that is real
 temporal leakage stacked on top of the generator leakage, and it changes
 reported numbers. It is not resolved by loosening the assertion.
 
-### 9.2 Slippage risk
-
-**Highest risk: Day 2**, and it is conditional on a Day 1 finding. If the data gate rules out per-customer aggregates, Day 2's headline deliverable disappears and the model falls back to transaction-level features only — which is precisely the ordinary approach §1 criticizes. Time is not the constraint there; having a documented, defensible answer for the writeup is.
-
-**Second: Day 4.** It carries the analysis the whole submission rests on and it is the day requiring the most judgment rather than mechanical work. It borrows from Day 3 by design (halved above) and from Day 7's buffer if needed.
-
-**Day 3 is deliberately no longer flagged as the top risk.** With a 70/12/10/8 split on 60k rows, the imbalance is mild: class weighting is a single parameter, and SMOTE at this ratio and sample size is a two-hour experiment with a likely-negative result, not a day of work.
-
-> ### RETROSPECTIVE (Day 4)
->
-> **Day 2 was correctly identified as the top risk — for the wrong reason.** The
-> predicted failure was "per-customer aggregates turn out to be undefined." The
-> actual failure was a degenerate generator that made the entire task trivial.
-> Both would have cost Day 2; only one was anticipated.
->
-> The useful lesson is not that the prediction was wrong. It is that **the
-> mitigation worked anyway**, because it was a *gate* (§6.4: stop on a
-> suspicious result) rather than a *forecast* of a specific failure. A gate
-> catches the failure you didn't think of; a forecast only catches the one you
-> did. That is worth stating in the pitch.
-
 ---
 
 ## 10. Deliverables Checklist
@@ -899,7 +866,7 @@ dropped.
 
 - [x] Public GitHub repo, structured as §8
 - [x] `docs/LEAKAGE_FINDING.md` — the headline result, complete with evidence
-- [x] `docs/DATA_NOTES.md` — Day 1 gate findings, **including the open rows-per-customer answer (§4.2)**
+- [x] `docs/DATA_NOTES.md` — data-gate findings, **including the open rows-per-customer answer (§4.2)**
 - [x] Held-out test set with documented split strategy (temporal)
 - [x] Per-class precision/recall/F1 + annotated confusion matrix
 - [x] **Friction ↔ missed-recovery operating curve** — the centerpiece (§6.2 correction)
@@ -933,7 +900,7 @@ dropped.
 **Repo hygiene**
 
 - [x] `runs/` committed; `data/raw/` not committed
-- [x] Tests T.1–T.9 all written and passing on fixtures — the plan's "if time runs out" fallback to T.1 / T.2 / T.6 was not needed. **139 tests across 15 files** (§9.3)
+- [x] Tests T.1–T.9 all written and passing on fixtures — the plan's "if time runs out" fallback to T.1 / T.2 / T.6 was not needed. **139 tests across 15 files** (§9.2)
 - [x] CI running `ruff check` + `pytest`, badge in README
 - [x] LICENSE present (MIT)
 - [x] Notebook outputs deliberately kept (all four notebooks executed in place,
@@ -953,26 +920,26 @@ dropped.
 Kept as a running list rather than folded into the text above, so a reviewer can
 see the shape of what changed at a glance. Entries are never deleted.
 
-| Date | § | Original claim | What replaced it | Trigger |
-|---|---|---|---|---|
-| Day 2 | §9.1.3 | Leakage sweep fits a **depth-1** tree per feature | Depth `max(2, n_classes-1)`, depth-1 reported alongside | `abuse_label` scored 0.393 at depth 1 and 1.000 at depth 3 — the gate passed a 1:1 label encoding |
-| Day 2 | §2 | Synthetic data means "absolute numbers may not transfer" | The dataset is **degenerate**; 4 untrained rules score 0.9188 macro-F1 | §6.4 protocol fired at 0.9986 |
-| Day 2 | §5 | Single model track | **Dual-track** `full` / `testbed` (§5.2) | Neither reporting 0.9986 nor silent feature-dropping is defensible |
-| Day 2 | §5.2 | *(first ablation attempt)* — dropped raw artifact columns only | Each rung drags its algebraic proxies out with it | `returns_per_order` restates `return_rate_pct`; the flat first ablation measured nothing |
-| Day 4 | §6.2 | `C_fp:C_fn` sweep is "the actual deliverable of the project" | **Friction ↔ missed-recovery** curve is the centerpiece; `C_fp:C_fn` reported as inert | Sweep produces byte-identical decisions from 0.03 to 32 on the full model |
-| Day 4 | §6.3 | Weakest boundary predicted: Wardrobing vs Policy Abuser | Actual: **Legitimate vs Policy Abuser** (342 of 592 ambiguous rows) | Top-two-margin analysis |
-| Day 6 | §9 Day 6 | "3–4 pytest tests on `features.py`" | Nine-test plan ranked by claim defended (§9.3) | Leakage finding changed what needs guarding |
-| Day 6 | §8, §10 | Streamlit demo app at `app/demo.py` | **Cut.** Replaced by `scripts/score.py`, a CLI over the same `src.infer` path | A UI shell demonstrates nothing the CLI doesn't; the decision layer is the deliverable, and a second scoring path is the two-implementations failure mode §8 warns about |
-| Day 6 | §4.2 | OPEN — whether trailing/temporal aggregates are "live" for the 1,945 repeat customers | **Closed: they aren't a real aggregate at all** — `total_orders_lifetime` etc. are independent per-row generator snapshots, non-monotonic across a customer's own rows (78 → 57 → 12 → 14 in one real case) | Checked directly against the raw CSV's repeat-customer rows while writing the T.2 temporal-leakage test |
-| Day 7 | §8 | No model binaries committed; `runs/` carries JSON and charts only | **`runs/model_full.joblib` committed**, plus `examples/` | The stated goal of committing `runs/` was that a reviewer without the dataset can still see the work. That reasoning covers the numbers but stopped short of the demo: with every bundle gitignored, `scripts/score.py` could not produce one prediction from a clean clone, and the only `--record` example in the docs was a `{"...": "..."}` placeholder that raises. 3.2M buys a demo that runs on `pip install` |
-| Day 7 | §8.2 | Pipeline stages fail with whatever exception the missing file raises | `require_artifacts` at each entry point: lists what is missing, names the command that builds it, exits 1 | Seven of eight `python -m src.*` entry points ended in a bare `FileNotFoundError` from library depth on a clean clone. `src/evaluate.py`'s was worse than absent — it guarded `model_{track}.json`, which *is* committed, then died on the gitignored `.npy`, so its friendly message was unreachable code |
-| Day 7 | §8, §6.2 | The scoring CLI exposes the cost policy through `--posture` alone | **`--friction` added**, and `--posture`'s help text corrected to state that it is the near-inert axis | The Day 4 correction moved the centerpiece to the friction axis, but the serving path was never updated to match: `src/infer.py` called `build_cost_matrix` without a `friction_cost`, silently taking the default, so the one axis §6.2 calls the deliverable could not be moved at the point of use. Measured before the fix: all three `--posture` values produce byte-identical actions for 12,000 of 12,000 rows on `full`, and differ on 29 at the extremes on `testbed`. `--friction` moves 764–1,219. Its `balanced (1:2)` default is the previously hardcoded value, so no committed artifact changed |
-| Post-build | §8, §10 | `docs/PITCH.md` ships in the repo as the written 5-minute script, checked off as delivered | **Removed at the author's request.** The file was copied out to a working folder and deleted from the repository; §8's tree, §10's checklist, the README's `docs/` listing and Status, and two comments in `tests/test_baseline_rule.py` were all updated in the same commit | A deliverable that leaves the repository has to leave the claims with it. Five documents named a file a reviewer would no longer find, which is the exact failure §10 asserts against — and the pitch line is now stated as fully open rather than half-checked |
+| § | Original claim | What replaced it | Trigger |
+|---|---|---|---|
+| §9.1.3 | Leakage sweep fits a **depth-1** tree per feature | Depth `max(2, n_classes-1)`, depth-1 reported alongside | `abuse_label` scored 0.393 at depth 1 and 1.000 at depth 3 — the gate passed a 1:1 label encoding |
+| §2 | Synthetic data means "absolute numbers may not transfer" | The dataset is **degenerate**; 4 untrained rules score 0.9188 macro-F1 | §6.4 protocol fired at 0.9986 |
+| §5 | Single model track | **Dual-track** `full` / `testbed` (§5.2) | Neither reporting 0.9986 nor silent feature-dropping is defensible |
+| §5.2 | *(first ablation attempt)* — dropped raw artifact columns only | Each rung drags its algebraic proxies out with it | `returns_per_order` restates `return_rate_pct`; the flat first ablation measured nothing |
+| §6.2 | `C_fp:C_fn` sweep is "the actual deliverable of the project" | **Friction ↔ missed-recovery** curve is the centerpiece; `C_fp:C_fn` reported as inert | Sweep produces byte-identical decisions from 0.03 to 32 on the full model |
+| §6.3 | Weakest boundary predicted: Wardrobing vs Policy Abuser | Actual: **Legitimate vs Policy Abuser** (342 of 592 ambiguous rows) | Top-two-margin analysis |
+| §9 | "3–4 pytest tests on `features.py`" | Nine-test plan ranked by claim defended (§9.2) | Leakage finding changed what needs guarding |
+| §8, §10 | Streamlit demo app at `app/demo.py` | **Cut.** Replaced by `scripts/score.py`, a CLI over the same `src.infer` path | A UI shell demonstrates nothing the CLI doesn't; the decision layer is the deliverable, and a second scoring path is the two-implementations failure mode §8 warns about |
+| §4.2 | OPEN — whether trailing/temporal aggregates are "live" for the 1,945 repeat customers | **Closed: they aren't a real aggregate at all** — `total_orders_lifetime` etc. are independent per-row generator snapshots, non-monotonic across a customer's own rows (78 → 57 → 12 → 14 in one real case) | Checked directly against the raw CSV's repeat-customer rows while writing the T.2 temporal-leakage test |
+| §8 | No model binaries committed; `runs/` carries JSON and charts only | **`runs/model_full.joblib` committed**, plus `examples/` | The stated goal of committing `runs/` was that a reviewer without the dataset can still see the work. That reasoning covers the numbers but stopped short of the demo: with every bundle gitignored, `scripts/score.py` could not produce one prediction from a clean clone, and the only `--record` example in the docs was a `{"...": "..."}` placeholder that raises. 3.2M buys a demo that runs on `pip install` |
+| §8.2 | Pipeline stages fail with whatever exception the missing file raises | `require_artifacts` at each entry point: lists what is missing, names the command that builds it, exits 1 | Seven of eight `python -m src.*` entry points ended in a bare `FileNotFoundError` from library depth on a clean clone. `src/evaluate.py`'s was worse than absent — it guarded `model_{track}.json`, which *is* committed, then died on the gitignored `.npy`, so its friendly message was unreachable code |
+| §8, §6.2 | The scoring CLI exposes the cost policy through `--posture` alone | **`--friction` added**, and `--posture`'s help text corrected to state that it is the near-inert axis | The §6.2 correction moved the centerpiece to the friction axis, but the serving path was never updated to match: `src/infer.py` called `build_cost_matrix` without a `friction_cost`, silently taking the default, so the one axis §6.2 calls the deliverable could not be moved at the point of use. Measured before the fix: all three `--posture` values produce byte-identical actions for 12,000 of 12,000 rows on `full`, and differ on 29 at the extremes on `testbed`. `--friction` moves 764–1,219. Its `balanced (1:2)` default is the previously hardcoded value, so no committed artifact changed |
+| §8, §10 | `docs/PITCH.md` ships in the repo as the written 5-minute script, checked off as delivered | **Removed at the author's request.** The file was copied out to a working folder and deleted from the repository; §8's tree, §10's checklist, the README's `docs/` listing and Status, and two comments in `tests/test_baseline_rule.py` were all updated in the same commit | A deliverable that leaves the repository has to leave the claims with it. Five documents named a file a reviewer would no longer find, which is the exact failure §10 asserts against — and the pitch line is now stated as fully open rather than half-checked |
 
-### 11.1 Serving-path audit — after Day 7
+### 11.1 Serving-path audit
 
 A ruthless read of the scoring path, run against a written audit checklist
-after the build week closed: static analysis and secret scanning, boundary
+after the build closed: static analysis and secret scanning, boundary
 payloads pushed through the scoring functions, failure paths executed, and the
 dependency and explainability posture examined. The checklist itself is not
 committed — it is an instruction document rather than an engineering artifact,

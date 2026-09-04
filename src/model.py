@@ -1,11 +1,11 @@
 """
-Model training (ARCHITECTURE.md §5), dual-track (Day 2 decision).
+Model training (ARCHITECTURE.md §5), dual-track.
 
 Two tracks are trained from the same code path, and which one produced a
 number is always recorded alongside it:
 
     full      The honest model — every legitimate feature. Reported as "the
-              model", together with the Day 1 leakage finding and the flat
+              model", together with the leakage finding and the flat
               cost sweep it produces.
 
     testbed   Rung G of src/ablation.py. NOT a model. A deliberately
@@ -223,7 +223,7 @@ def rule_baseline_metrics(raw_path: Path = RAW_PATH) -> dict:
 
     This is the runnable source for the "0.9425 accuracy / 0.9188 macro-F1"
     figure quoted throughout README.md and docs/, which previously existed
-    only as prose with no committed code behind it (Day 6 correction: every
+    only as prose with no committed code behind it (every
     quoted figure must be regenerable). tests/test_baseline_rule.py pins the
     four thresholds, so an edit here cannot silently falsify those documents.
     """

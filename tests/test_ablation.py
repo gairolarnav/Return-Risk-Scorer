@@ -1,7 +1,7 @@
 """
 Tests for the ablation proxy-restatement rule (src/ablation.py::_PROXIES).
 
-The Day 2 correction this project made: an ablation rung that drops a raw
+The correction this project made: an ablation rung that drops a raw
 column but keeps a derived feature that algebraically restates it (e.g.
 returns_per_order == return_rate_pct / 100) measures nothing -- the first
 version of this ladder did exactly that and came out nearly flat. This test

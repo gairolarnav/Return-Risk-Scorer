@@ -57,7 +57,7 @@ layout, test plan, status checklist (§10, two items open), and a correction log
 of every place the plan was wrong (§11). Then:
 [`LEAKAGE_FINDING.md`](docs/LEAKAGE_FINDING.md) (the headline result),
 [`EVALUATION.md`](docs/EVALUATION.md) (per-class metrics, both cost axes,
-failure-mode disclosure), [`DATA_NOTES.md`](docs/DATA_NOTES.md) (Day 1 gate).
+failure-mode disclosure), [`DATA_NOTES.md`](docs/DATA_NOTES.md) (the data gate).
 
 ## Limitations
 

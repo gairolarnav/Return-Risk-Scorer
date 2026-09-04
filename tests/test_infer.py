@@ -1,5 +1,5 @@
 """
-Tests for src/infer.py — regression coverage for the four bugs the Day 5
+Tests for src/infer.py — regression coverage for the four bugs the
 rewrite of this module was meant to close, plus the partial-record handling
 added afterwards. Each test below is named for the bug it guards against, not
 just the function it calls.
@@ -94,7 +94,7 @@ def test_prepare_record_maps_unseen_category_to_nan_not_a_shifted_code():
 
 
 def test_load_run_rejects_a_bundle_missing_categories(tmp_path):
-    """Bundles written before the Day 5 rewrite lack the `categories` key, and
+    """Bundles written before the rewrite lack the `categories` key, and
     load_run must reject them with a clear "retrain" message rather than
     loading them. A bundle missing categories that loads anyway falls through
     to prepare_record silently skipping reapplication — bug 1 reappearing
@@ -181,7 +181,7 @@ def test_unknown_posture_is_rejected_explicitly():
         score_record({"avg_order_value_usd": 100.0}, bundle, posture="does-not-exist")
 
 
-# The friction axis — the one the Day 4 correction identifies as the only axis
+# The friction axis — the one the §6.2 correction identifies as the only axis
 # that moves. It was reachable from src.evaluate's sweeps but NOT from the
 # serving path, which hardcoded build_cost_matrix's friction_cost default.
 

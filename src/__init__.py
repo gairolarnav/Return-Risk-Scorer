@@ -7,7 +7,7 @@ invalidates every result a notebook produces (docs/ARCHITECTURE.md §8), so a
 transform lives in exactly one module and everything else calls it.
 
 Module map:
-    data_gate         Day 1 gate: customer viability, split strategy, leakage sweep
+    data_gate         data gate: customer viability, split strategy, leakage sweep
     features          feature engineering + FULL/TESTBED track definitions
     ablation          degeneracy ladder (diagnostic evidence, not feature selection)
     model             trains either track, saves model + proba + metrics JSON

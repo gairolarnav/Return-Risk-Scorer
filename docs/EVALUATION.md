@@ -86,7 +86,7 @@ essentially no probability mass near any decision boundary for a cost
 posture to act on. It is reported as positive evidence of how degenerate
 the task is on this feature set.
 
-**Approve ↔ soft-friction (the axis `docs/LEAKAGE_FINDING.md`'s Day 4
+**Approve ↔ soft-friction (the axis `docs/LEAKAGE_FINDING.md`'s second
 finding identifies as the real one):** also flat on `full` — legitimate
 customers frictioned stays 0.00%, abusers caught stays 100.00%, for the same
 reason. `full` has no live axis at all; the friction axis only becomes

@@ -1,6 +1,6 @@
-# Leakage Finding — Day 1/2
+# Leakage Finding
 
-**Status: RESOLVED — dual-track build adopted (see "Decision (Day 2)" below).**
+**Status: RESOLVED — dual-track build adopted (see "Decision" below).**
 Triggered the §6.4 suspiciously-good-result protocol.
 Recorded here in full because it is the single most important honest-metrics
 result the project has, and because "our model scores 0.998" with no account
@@ -139,7 +139,7 @@ threshold comparisons.**
 Runnable source: `src.model.rule_baseline_metrics()`, run against the full
 raw CSV (not the train/test split — the point is generator separability,
 not generalisation). Output committed at `runs/baseline_rule.json`. This
-number existed only as prose until the Day 6 correction, which required every
+number existed only as prose until a later correction, which required every
 quoted figure to be regenerable from committed code. `tests/test_baseline_rule.py`
 now pins the four thresholds, so an edit to the rule cannot silently falsify
 this document.
@@ -165,7 +165,7 @@ This is the finding the project should lead with, not bury.
 
 ---
 
-## Correction (Day 2) — the cost centerpiece *is* affected
+## Correction — the cost centerpiece *is* affected
 
 An earlier version of this document concluded that the §6.2 cost-calibration
 work was "not invalidated by this finding — a decision policy over predicted
@@ -206,7 +206,7 @@ entire range. The sweep that ARCHITECTURE.md §6.2 names as "the actual
 deliverable of the project" returns a flat line.
 
 So the finding invalidates more than the classifier claim. It removes the
-Day 4 centerpiece too, unless the build responds to it.
+cost centerpiece too, unless the build responds to it.
 
 ### A note on the ablation table above
 
@@ -221,7 +221,7 @@ proxies out with it.
 
 ---
 
-## Decision (Day 2) — dual-track
+## Decision — dual-track
 
 Neither "report 0.998 and move on" nor "quietly drop features until the task
 looks hard" is defensible. The build runs two explicitly-labelled tracks:
@@ -244,7 +244,7 @@ arbitrary. "We dropped features until the task got hard" is not a result.
 
 ---
 
-## Day 4 finding — §6.2 was measuring the wrong axis
+## Second finding — §6.2 was measuring the wrong axis
 
 Running the calibration on the testbed produced a second correction to the
 architecture doc.
@@ -269,7 +269,7 @@ Runnable source: `src.evaluate.ambiguous_class_pairs()` on the `testbed`
 predicted probabilities. Output committed at `runs/ambiguity_testbed.json`
 (the `full` track's equivalent, `runs/ambiguity_full.json`, has only 1
 ambiguous row of 12,000 — consistent with its 0.1% threshold-sensitive
-figure). Also a Day 6 correction: this table existed only as prose before.
+figure). Also a later correction: this table existed only as prose before.
 
 **Fraudulent Return is the easiest class to separate.** The hard-block call is
 not where the difficulty lives, so the cost parameter governing it has almost

@@ -1,7 +1,7 @@
 """
-Degeneracy evidence — the ablation ladder (Day 2).
+Degeneracy evidence — the ablation ladder.
 
-This module exists because of the Day 1 leakage finding (docs/LEAKAGE_FINDING.md).
+This module exists because of the leakage finding (docs/LEAKAGE_FINDING.md).
 It is not a feature-selection tool and must not be read as one. Its job is to
 measure, reproducibly, *how much* of this dataset's separability is an artifact
 of the synthetic generator, and to produce the evidence table that the writeup
@@ -57,7 +57,7 @@ RUNS_DIR = Path("runs")
 DECIDED_PROB = 0.90
 
 # The ablation ladder, ordered by descending leakage contribution as measured
-# on Day 1. Each rung removes one more generator artifact. Ordering was
+# by the data gate. Each rung removes one more generator artifact. Ordering was
 # derived from the single-feature and greedy-forward-selection sweeps in
 # src/data_gate.py, not chosen to produce a pleasing curve.
 #
@@ -228,7 +228,7 @@ def run() -> None:
             {
                 "decided_prob_threshold": DECIDED_PROB,
                 "note": (
-                    "Diagnostic evidence for the Day 1 leakage finding, not a "
+                    "Diagnostic evidence for the leakage finding, not a "
                     "feature-selection procedure. See src/ablation.py docstring "
                     "and docs/LEAKAGE_FINDING.md."
                 ),

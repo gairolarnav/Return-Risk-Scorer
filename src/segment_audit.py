@@ -20,7 +20,7 @@ Reports two rates per bucket, not one:
                        the checklist item names, and evaluate.py's own
                        false_block_rate_on_legit metric, segmented.
   - soft_friction_rate legitimate customers given friction -- included
-                       because docs/LEAKAGE_FINDING.md's Day 4 finding is
+                       because docs/LEAKAGE_FINDING.md's second finding is
                        that hard-block is nearly inert on this data and
                        approve<->soft-friction is the axis that actually
                        moves. Auditing only hard_block_fpr on testbed would

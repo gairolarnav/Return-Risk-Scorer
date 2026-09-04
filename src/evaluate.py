@@ -100,7 +100,7 @@ DEFAULT_POSTURES: dict[str, tuple[float, float]] = {
     "loss-averse (1:8)": (120.0, 960.0),
 }
 
-# Named postures on the OTHER axis — the one that actually moves (Day 4
+# Named postures on the OTHER axis — the one that actually moves (the §6.2
 # correction, see sweep_friction_curve's docstring). DEFAULT_POSTURES sweeps
 # C_fp : C_fn, which this dataset renders nearly inert: on `full` every posture
 # above produces byte-identical decisions, and on `testbed` the extremes differ
@@ -318,7 +318,7 @@ def sweep_friction_curve(
 ) -> pd.DataFrame:
     """Sweep the *friction* axis: approve vs. soft-friction.
 
-    Why this axis exists at all — a Day 4 finding, not part of the original
+    Why this axis exists at all — a later finding, not part of the original
     plan. ARCHITECTURE.md §6.2 assumed the decisive tension was
     `C_fp : C_fn`, i.e. blocking an honest customer vs. letting real fraud
     through. On this data that axis is nearly inert: Fraudulent Return is the
@@ -510,7 +510,7 @@ def ambiguous_class_pairs(
     This is the runnable source for the "592 ambiguous rows, 342 of them
     Legitimate vs Policy Abuser, only 14 involving Fraudulent Return" figures
     quoted throughout docs/, which previously existed only as
-    prose with no committed code behind them (Day 6 correction: every quoted
+    prose with no committed code behind them (every quoted
     figure must be regenerable). Grouped by the model's *predicted*
     top-two classes, not the true label, since the question is which classes
     the model itself struggles to tell apart.

@@ -26,7 +26,7 @@ Two things this module deliberately does not do:
 Both cost axes are exposed, not just one. An earlier version took a `posture`
 setting C_fp : C_fn and left `build_cost_matrix`'s friction cell at its
 default, which meant the served decision could not be moved along the
-approve/soft-friction axis at all — the axis the Day 4 correction identifies
+approve/soft-friction axis at all — the axis the §6.2 correction identifies
 as the only one that moves on this data (§6.2, and sweep_friction_curve's
 docstring). Scoring a record on the `full` track under all three C_fp:C_fn
 postures returned byte-identical actions for 12,000 of 12,000 test rows. The
