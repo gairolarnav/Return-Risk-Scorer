@@ -3,7 +3,7 @@
 [![CI](https://github.com/gairolarnav/Return-Risk-Scorer/actions/workflows/ci.yml/badge.svg)](https://github.com/gairolarnav/Return-Risk-Scorer/actions/workflows/ci.yml)
 
 Multiclass return-risk scorer — **legitimate / wardrobing / policy abuse /
-fraudulent return** — for the Razorpay AI Risk Manager buildathon (Track 02).
+fraudulent return** .
 Most return-fraud tooling collapses these into one binary `is_fraud` flag; this
 scores the abuse *type*, so the merchant's response is proportionate — approve,
 soft friction, or hard block. Strictly **defense-only**: it scores and routes,
