@@ -53,10 +53,15 @@ DROP_COLS = ["abuse_label", "order_id", "customer_id", "order_date", "return_dat
 
 # The split is ordered by RETURN date, not order date. The label describes the
 # return, so return_date is when it materialises and when a deployed scorer
-# would actually see the record. Splitting on order_date instead leaves 1,399
+# would actually see the record. Splitting on order_date instead leaves 1,463
 # training rows whose return (and therefore label) lands inside the test
-# window — a subtle temporal leak for no benefit. Class balance is stable
-# across the return_date split (see docs/DATA_NOTES.md).
+# window — a subtle temporal leak for no benefit. That figure is the count of
+# train rows with return_date >= min(test order_date), under this same
+# index-based 80/20 mergesort split applied to order_date; state the
+# definition when quoting it, because neighbouring definitions give 1,374
+# (return_date > max train order_date) and the number is not meaningful
+# without one. Class balance is stable across the return_date split
+# (see docs/DATA_NOTES.md).
 SPLIT_DATE_COL = "return_date"
 TEST_FRACTION = 0.2
 
